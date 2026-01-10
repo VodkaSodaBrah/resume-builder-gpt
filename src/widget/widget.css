@@ -1,0 +1,151 @@
+/* Widget-specific styles */
+.resume-builder-widget-root {
+  /* Isolate widget styles from host page */
+  all: initial;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.resume-builder-widget-root *,
+.resume-builder-widget-root *::before,
+.resume-builder-widget-root *::after {
+  box-sizing: border-box;
+}
+
+/* Widget container sizes */
+.widget-container {
+  width: 380px;
+  height: 580px;
+}
+
+.widget-container.widget-compact {
+  width: 380px;
+  height: 580px;
+}
+
+.widget-container.widget-expanded {
+  width: 480px;
+  height: 720px;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+  .widget-container {
+    width: calc(100vw - 32px);
+    height: calc(100vh - 100px);
+    max-height: 600px;
+  }
+
+  .widget-container.widget-expanded {
+    width: calc(100vw - 16px);
+    height: calc(100vh - 32px);
+    max-height: none;
+  }
+}
+
+/* Widget trigger button animation */
+.widget-trigger {
+  animation: widget-pulse 2s infinite;
+}
+
+@keyframes widget-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(34, 197, 94, 0);
+  }
+}
+
+/* Compact mode chat adjustments */
+.widget-compact .chat-container {
+  padding: 12px;
+}
+
+.widget-compact .chat-bubble {
+  max-width: 90%;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+.widget-compact .chat-input {
+  padding: 10px;
+}
+
+.widget-compact .progress-bar {
+  height: 3px;
+}
+
+/* Custom scrollbar for widget */
+.widget-container ::-webkit-scrollbar {
+  width: 6px;
+}
+
+.widget-container ::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+.widget-container ::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 3px;
+}
+
+.widget-container ::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* Widget form styling */
+.widget-container .terminal-window {
+  border-radius: 8px;
+}
+
+.widget-container .terminal-header {
+  padding: 8px 12px;
+}
+
+.widget-container input,
+.widget-container textarea {
+  font-size: 14px;
+  padding: 10px 12px;
+}
+
+.widget-container button {
+  font-size: 14px;
+}
+
+/* Ensure widget appears above other content */
+.resume-builder-widget {
+  position: fixed;
+  z-index: 9999;
+}
+
+/* Animation for widget opening */
+@keyframes widget-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.widget-container {
+  animation: widget-slide-up 0.3s ease-out;
+}
+
+/* Shadow effects */
+.widget-container {
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(39, 39, 42, 0.5);
+}
+
+/* Primary color CSS variable support */
+.widget-container [data-accent="primary"] {
+  background-color: var(--widget-primary, #22c55e);
+}
+
+.widget-container [data-accent="primary-text"] {
+  color: var(--widget-primary, #22c55e);
+}

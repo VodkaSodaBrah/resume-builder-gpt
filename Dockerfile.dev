@@ -1,0 +1,24 @@
+# Development Dockerfile with hot reload
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install Azure Functions Core Tools
+RUN apk add --no-cache curl bash && \
+    npm install -g azure-functions-core-tools@4 concurrently
+
+# Copy package files first for caching
+COPY package*.json ./
+COPY api/package*.json ./api/
+
+# Install dependencies
+RUN npm install && cd api && npm install
+
+# Copy source code
+COPY . .
+
+# Expose ports
+EXPOSE 3000 7071
+
+# Start both frontend and API in dev mode
+CMD ["concurrently", "--names", "frontend,api", "--prefix-colors", "cyan,yellow", "npm run dev", "cd api && func start --port 7071"]

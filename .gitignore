@@ -1,0 +1,59 @@
+# Dependencies
+node_modules
+api/node_modules
+
+# Build outputs
+dist
+dist-ssr
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.local
+api/local.settings.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+*~
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Test coverage
+coverage
+
+# Azure Functions
+bin
+obj
+.python_packages
+__pycache__
+
+# Temporary files
+*.tmp
+*.temp
+
+# Azure config (contains secrets)
+.azure-config-*.json
+
+# Playwright screenshots
+.playwright-mcp/

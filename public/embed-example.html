@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resume Builder Widget - Embed Example</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 40px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #333;
+    }
+    .code-block {
+      background: #1a1a1a;
+      color: #22c55e;
+      padding: 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 14px;
+      margin: 20px 0;
+    }
+    .code-block code {
+      white-space: pre;
+    }
+    .section {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      margin: 20px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    p {
+      color: #666;
+      line-height: 1.6;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+    th, td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    th {
+      background: #f9f9f9;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Resume Builder Widget</h1>
+    <p>Embed the AI-powered resume builder on your website with just a few lines of code.</p>
+
+    <div class="section">
+      <h2>Quick Start (Automatic Initialization)</h2>
+      <p>Add this snippet to your HTML to automatically display the widget:</p>
+      <div class="code-block">
+<code>&lt;!-- Resume Builder Widget --&gt;
+&lt;div
+  data-resume-builder-widget
+  data-company-name="Your Company"
+  data-primary-color="#22c55e"
+&gt;&lt;/div&gt;
+&lt;script src="https://your-domain.com/widget/resume-builder-widget.iife.js"&gt;&lt;/script&gt;
+&lt;link rel="stylesheet" href="https://your-domain.com/widget/resume-builder-widget.css"&gt;</code>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Manual Initialization (JavaScript API)</h2>
+      <p>For more control, initialize the widget programmatically:</p>
+      <div class="code-block">
+<code>&lt;script src="https://your-domain.com/widget/resume-builder-widget.iife.js"&gt;&lt;/script&gt;
+&lt;link rel="stylesheet" href="https://your-domain.com/widget/resume-builder-widget.css"&gt;
+
+&lt;script&gt;
+  // Initialize with configuration
+  const widget = window.ResumeBuilderWidget.init({
+    companyName: 'Your Company',
+    companyLogo: 'https://your-domain.com/logo.png',
+    primaryColor: '#22c55e',
+    allowSignup: true,
+    defaultLanguage: 'en',
+    apiUrl: 'https://your-api.azurewebsites.net',
+    onComplete: function(resumeData) {
+      console.log('Resume completed:', resumeData);
+      // Handle completed resume
+    },
+    onClose: function() {
+      console.log('Widget closed');
+    }
+  });
+
+  // Later, to destroy the widget:
+  // window.ResumeBuilderWidget.destroy(widget);
+&lt;/script&gt;</code>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Configuration Options</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Option</th>
+            <th>Type</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>companyName</code></td>
+            <td>string</td>
+            <td>"Resume Builder"</td>
+            <td>Company name displayed in widget header</td>
+          </tr>
+          <tr>
+            <td><code>companyLogo</code></td>
+            <td>string</td>
+            <td>null</td>
+            <td>URL to company logo image</td>
+          </tr>
+          <tr>
+            <td><code>primaryColor</code></td>
+            <td>string</td>
+            <td>"#22c55e"</td>
+            <td>Primary accent color (hex format)</td>
+          </tr>
+          <tr>
+            <td><code>allowSignup</code></td>
+            <td>boolean</td>
+            <td>true</td>
+            <td>Show signup option for new users</td>
+          </tr>
+          <tr>
+            <td><code>defaultLanguage</code></td>
+            <td>string</td>
+            <td>"en"</td>
+            <td>Default language code (en, es, fr, etc.)</td>
+          </tr>
+          <tr>
+            <td><code>apiUrl</code></td>
+            <td>string</td>
+            <td>"/api"</td>
+            <td>Base URL for API endpoints</td>
+          </tr>
+          <tr>
+            <td><code>onComplete</code></td>
+            <td>function</td>
+            <td>null</td>
+            <td>Callback when resume is completed</td>
+          </tr>
+          <tr>
+            <td><code>onClose</code></td>
+            <td>function</td>
+            <td>null</td>
+            <td>Callback when widget is closed</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Data Attributes (Auto-Init)</h2>
+      <p>When using automatic initialization, you can set options via data attributes:</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Attribute</th>
+            <th>Maps To</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>data-company-name</code></td>
+            <td>companyName</td>
+          </tr>
+          <tr>
+            <td><code>data-company-logo</code></td>
+            <td>companyLogo</td>
+          </tr>
+          <tr>
+            <td><code>data-primary-color</code></td>
+            <td>primaryColor</td>
+          </tr>
+          <tr>
+            <td><code>data-allow-signup</code></td>
+            <td>allowSignup</td>
+          </tr>
+          <tr>
+            <td><code>data-default-language</code></td>
+            <td>defaultLanguage</td>
+          </tr>
+          <tr>
+            <td><code>data-api-url</code></td>
+            <td>apiUrl</td>
+          </tr>
+          <tr>
+            <td><code>data-resume-builder-config</code></td>
+            <td>Full JSON config object</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>White-Label / Licensing</h2>
+      <p>For white-label deployments, you can fully customize the widget appearance:</p>
+      <div class="code-block">
+<code>const widget = window.ResumeBuilderWidget.init({
+  companyName: 'Career Services Inc.',
+  companyLogo: 'https://career-services.com/logo.png',
+  primaryColor: '#0066cc',
+  apiUrl: 'https://career-services-api.azurewebsites.net',
+  allowSignup: true,
+  onComplete: function(resumeData) {
+    // Send to your own backend for additional processing
+    fetch('/api/save-resume', {
+      method: 'POST',
+      body: JSON.stringify(resumeData)
+    });
+  }
+});</code>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Browser Support</h2>
+      <p>The widget supports all modern browsers:</p>
+      <ul>
+        <li>Chrome 80+</li>
+        <li>Firefox 75+</li>
+        <li>Safari 13+</li>
+        <li>Edge 80+</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Demo: Add the widget here -->
+  <div
+    data-resume-builder-widget
+    data-company-name="Demo Company"
+    data-primary-color="#22c55e"
+  ></div>
+</body>
+</html>
