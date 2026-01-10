@@ -50,7 +50,8 @@ export const getResumesBlobContainer = async (): Promise<ContainerClient> => {
   if (!resumesBlobClient) {
     const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
     resumesBlobClient = blobServiceClient.getContainerClient('resumes');
-    await resumesBlobClient.createIfNotExists({ access: 'blob' });
+    // SECURITY: Use private access - blobs require authenticated access via SAS tokens
+    await resumesBlobClient.createIfNotExists(); // defaults to private (no public access)
   }
   return resumesBlobClient;
 };

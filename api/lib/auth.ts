@@ -3,8 +3,64 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { getUsersTable, getSessionsTable, UserEntity, SessionEntity } from './storage';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
+// SECURITY: JWT_SECRET must be set in environment - no fallback allowed
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('CRITICAL: JWT_SECRET environment variable is not set. Application cannot start without a secure secret.');
+}
+if (JWT_SECRET.length < 32) {
+  throw new Error('CRITICAL: JWT_SECRET must be at least 32 characters long for security.');
+}
+
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+
+// Password strength requirements
+const PASSWORD_MIN_LENGTH = 12;
+const PASSWORD_REQUIREMENTS = {
+  minLength: PASSWORD_MIN_LENGTH,
+  requireUppercase: true,
+  requireLowercase: true,
+  requireNumber: true,
+  requireSpecial: true,
+};
+
+export interface PasswordValidationResult {
+  valid: boolean;
+  errors: string[];
+}
+
+export const validatePasswordStrength = (password: string): PasswordValidationResult => {
+  const errors: string[] = [];
+
+  if (password.length < PASSWORD_REQUIREMENTS.minLength) {
+    errors.push(`Password must be at least ${PASSWORD_REQUIREMENTS.minLength} characters long`);
+  }
+  if (PASSWORD_REQUIREMENTS.requireUppercase && !/[A-Z]/.test(password)) {
+    errors.push('Password must contain at least one uppercase letter');
+  }
+  if (PASSWORD_REQUIREMENTS.requireLowercase && !/[a-z]/.test(password)) {
+    errors.push('Password must contain at least one lowercase letter');
+  }
+  if (PASSWORD_REQUIREMENTS.requireNumber && !/[0-9]/.test(password)) {
+    errors.push('Password must contain at least one number');
+  }
+  if (PASSWORD_REQUIREMENTS.requireSpecial && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    errors.push('Password must contain at least one special character');
+  }
+
+  return { valid: errors.length === 0, errors };
+};
+
+// Input sanitization for Azure Table Storage queries (prevent NoSQL injection)
+const sanitizeForTableQuery = (input: string): string => {
+  // Validate UUID format for id fields
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(input)) {
+    throw new Error('Invalid identifier format');
+  }
+  // Escape single quotes by doubling them (Azure Table Storage OData syntax)
+  return input.replace(/'/g, "''");
+};
 
 export interface JwtPayload {
   userId: string;
@@ -87,8 +143,10 @@ export const getUserById = async (id: string): Promise<UserEntity | null> => {
   const usersTable = await getUsersTable();
 
   try {
+    // SECURITY: Validate and sanitize input to prevent NoSQL injection
+    const sanitizedId = sanitizeForTableQuery(id);
     const entities = usersTable.listEntities<UserEntity>({
-      queryOptions: { filter: `id eq '${id}'` },
+      queryOptions: { filter: `id eq '${sanitizedId}'` },
     });
 
     for await (const entity of entities) {
@@ -126,8 +184,10 @@ export const verifyUserEmail = async (token: string): Promise<UserEntity | null>
   const usersTable = await getUsersTable();
 
   try {
+    // SECURITY: Validate and sanitize token to prevent NoSQL injection
+    const sanitizedToken = sanitizeForTableQuery(token);
     const entities = usersTable.listEntities<UserEntity>({
-      queryOptions: { filter: `emailVerificationToken eq '${token}'` },
+      queryOptions: { filter: `emailVerificationToken eq '${sanitizedToken}'` },
     });
 
     for await (const entity of entities) {

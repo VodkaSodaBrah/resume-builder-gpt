@@ -1,6 +1,13 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { z } from 'zod';
 import { getUserByEmail, comparePassword, generateToken, updateUser } from '../lib/auth';
+import {
+  checkAuthRateLimit,
+  getClientIdentifier,
+  rateLimitResponse,
+  secureResponse,
+  logSecurityEvent,
+} from '../lib/security';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -12,6 +19,15 @@ export async function login(
   context: InvocationContext
 ): Promise<HttpResponseInit> {
   try {
+    // SECURITY: Rate limiting to prevent brute force attacks
+    const clientId = getClientIdentifier(request);
+    const rateLimitResult = checkAuthRateLimit(clientId);
+
+    if (!rateLimitResult.allowed) {
+      logSecurityEvent(request, 'RATE_LIMIT_EXCEEDED', { endpoint: 'login' });
+      return secureResponse(rateLimitResponse(rateLimitResult), request);
+    }
+
     const body = await request.json();
     const validation = loginSchema.safeParse(body);
 
@@ -30,36 +46,40 @@ export async function login(
     // Get user
     const user = await getUserByEmail(email);
     if (!user) {
-      return {
+      // SECURITY: Log failed login attempt
+      logSecurityEvent(request, 'AUTH_FAILURE', { reason: 'user_not_found', email });
+      return secureResponse({
         status: 401,
         jsonBody: {
           success: false,
           error: 'Invalid email or password',
         },
-      };
+      }, request);
     }
 
     // Check password
     const isValidPassword = await comparePassword(password, user.passwordHash);
     if (!isValidPassword) {
-      return {
+      // SECURITY: Log failed login attempt
+      logSecurityEvent(request, 'AUTH_FAILURE', { reason: 'invalid_password', email });
+      return secureResponse({
         status: 401,
         jsonBody: {
           success: false,
           error: 'Invalid email or password',
         },
-      };
+      }, request);
     }
 
     // Check if email is verified
     if (!user.emailVerified) {
-      return {
+      return secureResponse({
         status: 403,
         jsonBody: {
           success: false,
           error: 'Please verify your email before logging in',
         },
-      };
+      }, request);
     }
 
     // Generate token
@@ -73,7 +93,7 @@ export async function login(
       lastLoginAt: new Date().toISOString(),
     });
 
-    return {
+    return secureResponse({
       status: 200,
       jsonBody: {
         success: true,
@@ -87,16 +107,16 @@ export async function login(
           lastLoginAt: new Date().toISOString(),
         },
       },
-    };
+    }, request);
   } catch (error) {
     context.error('Login error:', error);
-    return {
+    return secureResponse({
       status: 500,
       jsonBody: {
         success: false,
         error: 'An error occurred during login',
       },
-    };
+    }, request);
   }
 }
 

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { User, AuthState } from '@/types';
 
 interface AuthStore extends AuthState {
@@ -12,9 +12,29 @@ interface AuthStore extends AuthState {
   refreshToken: () => Promise<void>;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
+  clearSensitiveData: () => void;
 }
 
 const API_BASE = '/api';
+
+// SECURITY: Token expiration check
+const isTokenExpired = (token: string | null): boolean => {
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+};
+
+// SECURITY: Clear auth data on window close for sensitive sessions
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    // Optional: Uncomment to clear on window close for higher security
+    // sessionStorage.removeItem('resume-builder-auth');
+  });
+}
 
 export const useAuthStore = create<AuthStore>()(
   persist(
@@ -79,11 +99,25 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logout: () => {
+        // SECURITY: Clear all sensitive data from storage
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('resume-builder-auth');
+          sessionStorage.removeItem('resume-builder-auth');
+        }
         set({
           user: null,
           token: null,
           isAuthenticated: false,
         });
+      },
+
+      clearSensitiveData: () => {
+        // SECURITY: Clear token but keep user info for display
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('resume-builder-auth');
+          sessionStorage.removeItem('resume-builder-auth');
+        }
+        set({ token: null, isAuthenticated: false });
       },
 
       verifyEmail: async (token: string) => {
@@ -186,11 +220,31 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: 'resume-builder-auth',
+      // SECURITY: Use sessionStorage instead of localStorage for better security
+      // sessionStorage is cleared when the browser tab is closed
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         token: state.token,
         user: state.user,
         isAuthenticated: state.isAuthenticated,
       }),
+      // SECURITY: Check token expiration on rehydration
+      onRehydrateStorage: () => (state) => {
+        if (state && state.token && isTokenExpired(state.token)) {
+          // Token has expired, clear auth state
+          state.logout();
+        }
+      },
     }
   )
 );
+
+// SECURITY: Periodic token expiration check (every 60 seconds)
+if (typeof window !== 'undefined') {
+  setInterval(() => {
+    const state = useAuthStore.getState();
+    if (state.token && isTokenExpired(state.token)) {
+      state.logout();
+    }
+  }, 60000);
+}
