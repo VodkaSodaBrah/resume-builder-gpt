@@ -103,8 +103,8 @@ export const SignupForm: React.FC = () => {
 
         <div className="p-6">
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-white mb-2">Create Account</h1>
-            <p className="text-[#a1a1aa]">Start building your professional resume</p>
+            <h1 className="text-2xl font-bold text-white mb-2">Create Your Free Account</h1>
+            <p className="text-[#a1a1aa]">Takes 5 minutes to build a resume that gets results</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

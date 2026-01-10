@@ -6,7 +6,7 @@ export const questions: Question[] = [
   {
     id: 'intro_welcome',
     category: 'intro',
-    question: "Hello! I'm here to help you create a professional resume. I'll ask you some questions one at a time, and I'll help make your experience sound great to employers. Let's start with some basic information about you. Ready to begin?",
+    question: "Welcome! Let's build you a resume that stands out. We'll walk through a few quick questions about your background, and then put together a polished, professional resume you can download. Ready to get started?",
     field: 'ready',
     isRequired: true,
     inputType: 'confirm',
@@ -132,7 +132,7 @@ export const questions: Question[] = [
   {
     id: 'work_responsibilities_1',
     category: 'work',
-    question: "What did you do at this job? Describe your main tasks and any accomplishments. Don't worry about making it sound perfect - I'll help polish it!",
+    question: "What did you do at this job? Describe your main tasks and any accomplishments. Don't worry about making it sound perfect - we'll polish it up for you!",
     field: 'workExperience[0].responsibilities',
     isRequired: true,
     inputType: 'textarea',
@@ -375,7 +375,7 @@ export const questions: Question[] = [
   {
     id: 'review_confirm',
     category: 'review',
-    question: "I'm now going to create your resume! I'll improve the descriptions you gave me to make them sound more professional and attractive to employers. Ready to generate your resume?",
+    question: "Perfect! We're ready to create your resume. Your descriptions will be polished up to sound professional and compelling to employers. Ready to generate?",
     field: 'confirmGenerate',
     isRequired: true,
     inputType: 'confirm',

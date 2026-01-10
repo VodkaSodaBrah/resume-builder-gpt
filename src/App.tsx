@@ -53,7 +53,7 @@ const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <span className="text-green-500 font-mono text-2xl">/&gt;</span>
           </div>
           <p className="text-[#a1a1aa]">
-            Create professional resumes with AI assistance
+            Build a resume that gets you noticed
           </p>
         </div>
         {children}
@@ -93,16 +93,16 @@ const LandingPage: React.FC = () => {
           </div>
 
           <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6">
-            Create Professional Resumes
+            Build a Resume That
             <br />
             <span className="bg-gradient-to-r from-green-500 to-cyan-500 bg-clip-text text-transparent">
-              With AI Assistance
+              Gets You Hired
             </span>
           </h1>
 
           <p className="text-xl text-[#a1a1aa] mb-8 max-w-2xl mx-auto">
-            Answer simple questions, and our AI will help you create a
-            professional, ATS-friendly resume that gets you noticed.
+            Answer a few simple questions and we'll create a polished,
+            professional resume that stands out to employers.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -141,11 +141,11 @@ const LandingPage: React.FC = () => {
               <span className="text-2xl">✨</span>
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">
-              AI-Enhanced Writing
+              Polished, Professional Writing
             </h3>
             <p className="text-[#a1a1aa]">
-              Our AI improves your job descriptions to sound professional and
-              impressive to employers.
+              We help turn your experience into compelling descriptions that
+              impress hiring managers.
             </p>
           </div>
 
