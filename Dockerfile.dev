@@ -1,11 +1,17 @@
 # Development Dockerfile with hot reload
-FROM node:20-alpine
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# Install Azure Functions Core Tools
-RUN apk add --no-cache curl bash && \
-    npm install -g azure-functions-core-tools@4 concurrently
+# Install dependencies for Azure Functions Core Tools (.NET requires ICU)
+RUN apt-get update && apt-get install -y \
+    curl \
+    unzip \
+    libicu72 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Azure Functions Core Tools via npm and concurrently
+RUN npm install -g azure-functions-core-tools@4 concurrently
 
 # Copy package files first for caching
 COPY package*.json ./
@@ -20,5 +26,5 @@ COPY . .
 # Expose ports
 EXPOSE 3000 7071
 
-# Start both frontend and API in dev mode
-CMD ["concurrently", "--names", "frontend,api", "--prefix-colors", "cyan,yellow", "npm run dev", "cd api && func start --port 7071"]
+# Build API and start services (volume mount overwrites build, so build at startup)
+CMD ["sh", "-c", "cd api && npm run build && cd .. && concurrently --names 'frontend,api' --prefix-colors 'cyan,yellow' 'npm run dev -- --host 0.0.0.0' 'cd api && func start --port 7071 --host 0.0.0.0'"]

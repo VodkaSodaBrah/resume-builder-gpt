@@ -46,7 +46,7 @@ services:
     environment:
       - NODE_ENV=development
       - AZURE_STORAGE_CONNECTION_STRING=UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite
-      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production-at-least-32-chars}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SENDGRID_API_KEY=${SENDGRID_API_KEY}
