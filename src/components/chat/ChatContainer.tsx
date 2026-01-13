@@ -9,7 +9,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { SectionProgressBar, getSectionIntroMessage, getSectionCompletionMessage } from '@/components/ui/SectionProgressBar';
 import { useConversationStore } from '@/stores/conversationStore';
 import { useAnalyticsStore, AnalyticsEvents } from '@/stores/analyticsStore';
-import { getCategoryLabel, ADD_MORE_SECTION_MAP, getQuestionIndexById, transformFieldPath } from '@/lib/questions';
+import { getCategoryLabel, ADD_MORE_SECTION_MAP, getQuestionIndexById, transformFieldPath, getQuestionTextForEntry, getSectionKeyForQuestion } from '@/lib/questions';
 import { useTranslation } from '@/hooks/useTranslation';
 import { parseAnswer, applyExtractedFields, shouldSkipQuestion } from '@/lib/answerParser';
 
@@ -62,18 +62,40 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
   const progress = getProgress();
 
   // Get translated question text - skip translation for language selection question
+  // Also handles dynamic text for multi-entry sections based on entry count
   const getQuestionText = useCallback((question: typeof currentQuestion) => {
     if (!question) return '';
     // Language selection question is always shown as-is (multi-lingual)
     if (question.id === 'language_select') {
       return question.question;
     }
-    // Try to get translated question, fall back to original
+
+    // Get the entry index for multi-entry sections
+    const sectionKey = getSectionKeyForQuestion(question.id);
+    let entryIndex = 0;
+    if (sectionKey) {
+      const sectionCounts: Record<string, number> = {
+        'work': workExperienceCount,
+        'education': educationCount,
+        'volunteering': volunteeringCount,
+        'references': referenceCount,
+      };
+      entryIndex = sectionCounts[sectionKey] || 0;
+    }
+
+    // Get the appropriate question text for the entry index
+    const questionText = getQuestionTextForEntry(question, entryIndex);
+
+    // Try to get translated question, fall back to question text
     const translationKey = `questions.${question.id.replace(/_/g, '_')}`;
     const translated = t(translationKey);
-    // If translation key is returned (not found), use original question
-    return translated === translationKey ? question.question : translated;
-  }, [t]);
+    // If translation key is returned (not found), use question text (possibly dynamic for subsequent entries)
+    // Note: For subsequent entries, we use the dynamic text since translations may not exist for those
+    if (entryIndex > 0) {
+      return questionText;
+    }
+    return translated === translationKey ? questionText : translated;
+  }, [t, workExperienceCount, educationCount, volunteeringCount, referenceCount]);
 
   // Get translated category label
   const getTranslatedCategoryLabel = useCallback((category: typeof currentCategory) => {
