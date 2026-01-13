@@ -3,15 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { ChatBubble, TypingIndicator } from './ChatBubble';
 import { ChatInput } from './ChatInput';
 import { InlinePreviewCard } from './InlinePreviewCard';
+import { ExportOptionsCard } from './ExportOptionsCard';
+import { GmailGuideCard } from './GmailGuideCard';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { SectionProgressBar, getSectionIntroMessage, getSectionCompletionMessage } from '@/components/ui/SectionProgressBar';
 import { useConversationStore } from '@/stores/conversationStore';
 import { useAnalyticsStore, AnalyticsEvents } from '@/stores/analyticsStore';
-import { getCategoryLabel } from '@/lib/questions';
+import { getCategoryLabel, ADD_MORE_SECTION_MAP, getQuestionIndexById, transformFieldPath } from '@/lib/questions';
 import { useTranslation } from '@/hooks/useTranslation';
 import { parseAnswer, applyExtractedFields, shouldSkipQuestion } from '@/lib/answerParser';
 
-// Special marker for inline preview card
+// Special markers for inline cards
 const PREVIEW_CARD_MARKER = '__PREVIEW_CARD__';
+const EXPORT_OPTIONS_MARKER = '__EXPORT_OPTIONS__';
+const GMAIL_GUIDE_MARKER = '__GMAIL_GUIDE__';
 
 interface ChatContainerProps {
   isWidget?: boolean;
@@ -40,6 +45,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
     getCurrentQuestion,
     getProgress,
     shouldSkipCurrentQuestion,
+    workExperienceCount,
+    educationCount,
+    volunteeringCount,
+    referenceCount,
+    addWorkExperience,
+    addEducation,
+    addVolunteering,
+    addReference,
   } = useConversationStore();
 
   const { trackEvent } = useAnalyticsStore();
@@ -156,12 +169,171 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
         }, 800);
         return; // Don't proceed with normal flow
       }
-      // If user says "No" (no changes needed), continue with normal completion flow below
+
+      // User says "No" (no changes needed) - show export options and complete
+      setTyping(true);
+      setTimeout(() => {
+        const store = useConversationStore.getState();
+        store.completeConversation();
+
+        addMessage({
+          role: 'assistant',
+          content: t('messages.exportReady', "Your resume is complete and ready to download! You can get it as a PDF for most job applications, or as a Word document if you need to make further edits."),
+        });
+
+        // Add the export options card
+        addMessage({
+          role: 'assistant',
+          content: EXPORT_OPTIONS_MARKER,
+        });
+
+        trackEvent(AnalyticsEvents.RESUME_COMPLETE, {
+          totalQuestions: progress.total,
+        });
+
+        // Call onComplete callback with resume data (for widget integration)
+        if (onComplete) {
+          onComplete(store.resumeData);
+        }
+
+        setTyping(false);
+      }, 800);
+      return; // Don't proceed with normal flow
+    }
+
+    // Handle email question - detect if user doesn't have an email
+    if (currentQuestion.id === 'personal_email') {
+      const noEmailPhrases = [
+        "don't have",
+        "dont have",
+        "no email",
+        "none",
+        "i don't",
+        "i dont",
+        "no i don't",
+        "need to create",
+        "don't know",
+        "dont know",
+        "no",
+      ];
+
+      const userHasNoEmail = noEmailPhrases.some(phrase =>
+        value.toLowerCase().trim() === phrase ||
+        value.toLowerCase().includes(phrase)
+      );
+
+      if (userHasNoEmail) {
+        setTyping(true);
+        setTimeout(() => {
+          addMessage({
+            role: 'assistant',
+            content: t('messages.noEmailHelp', "No problem! Having a professional email is important for job applications. Let me help you create one - it's free and only takes a few minutes."),
+          });
+
+          // Show the Gmail guide card
+          addMessage({
+            role: 'assistant',
+            content: GMAIL_GUIDE_MARKER,
+          });
+
+          addMessage({
+            role: 'assistant',
+            content: t('messages.emailAfterGuide', "Once you've created your email, come back and type it here:"),
+          });
+
+          setTyping(false);
+        }, 500);
+        return; // Don't proceed - wait for them to enter an actual email
+      }
+    }
+
+    // Handle "add more" questions for multi-entry sections
+    const addMoreConfig = ADD_MORE_SECTION_MAP[currentQuestion.id];
+    if (addMoreConfig) {
+      const wantsMore = value.toLowerCase() === 'yes' ||
+                        value.toLowerCase().includes('yes') ||
+                        value.toLowerCase().includes('another') ||
+                        value.toLowerCase().includes('add');
+
+      if (wantsMore) {
+        // Increment the appropriate counter
+        const incrementFns: Record<string, () => void> = {
+          'work': addWorkExperience,
+          'education': addEducation,
+          'volunteering': addVolunteering,
+          'references': addReference,
+        };
+
+        const sectionLabels: Record<string, string> = {
+          'work': t('sections.workExperience', 'work experience'),
+          'education': t('sections.education', 'education'),
+          'volunteering': t('sections.volunteering', 'volunteer experience'),
+          'references': t('sections.references', 'reference'),
+        };
+
+        const incrementFn = incrementFns[addMoreConfig.sectionKey];
+        if (incrementFn) {
+          incrementFn();
+        }
+
+        // Go back to the first question of this section
+        const firstQuestionIndex = getQuestionIndexById(addMoreConfig.firstQuestionId);
+
+        setTyping(true);
+        setTimeout(() => {
+          const sectionLabel = sectionLabels[addMoreConfig.sectionKey] || 'entry';
+          addMessage({
+            role: 'assistant',
+            content: t('messages.addingAnother', `Great! Let's add another ${sectionLabel}.`).replace('${sectionLabel}', sectionLabel),
+          });
+
+          goToQuestion(firstQuestionIndex);
+
+          // Show the first question of the section
+          setTimeout(() => {
+            const store = useConversationStore.getState();
+            const question = store.getCurrentQuestion();
+            if (question) {
+              addMessage({
+                role: 'assistant',
+                content: getQuestionText(question),
+                questionId: question.id,
+              });
+            }
+            setTyping(false);
+          }, 300);
+        }, 500);
+
+        return; // Don't proceed with normal flow
+      }
+      // User said no - continue with normal flow to next section
     }
 
     // Update resume data with the primary value
+    // Transform field path for multi-entry sections based on current count
     if (currentQuestion.field && currentQuestion.field !== 'ready' && currentQuestion.field !== 'confirmGenerate') {
-      updateResumeData(currentQuestion.field, processedValue);
+      let fieldPath = currentQuestion.field;
+
+      // Get the current entry index for multi-entry sections
+      const sectionCounts: Record<string, number> = {
+        'work': workExperienceCount,
+        'education': educationCount,
+        'volunteering': volunteeringCount,
+        'references': referenceCount,
+      };
+
+      // Check if this field belongs to a multi-entry section and transform the path
+      if (fieldPath.includes('workExperience[')) {
+        fieldPath = transformFieldPath(fieldPath, 'work', sectionCounts['work']);
+      } else if (fieldPath.includes('education[')) {
+        fieldPath = transformFieldPath(fieldPath, 'education', sectionCounts['education']);
+      } else if (fieldPath.includes('volunteering[')) {
+        fieldPath = transformFieldPath(fieldPath, 'volunteering', sectionCounts['volunteering']);
+      } else if (fieldPath.includes('references[')) {
+        fieldPath = transformFieldPath(fieldPath, 'references', sectionCounts['references']);
+      }
+
+      updateResumeData(fieldPath, processedValue);
     }
 
     // Apply any additional fields extracted from the combined answer
@@ -241,6 +413,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
       }
 
       if (nextQ) {
+        // Check if we're transitioning to a new section
+        const isNewSection = nextQ.category !== currentQuestion.category;
+
         // After review_confirm is answered with Yes, show the preview card before the complete question
         if (currentQuestion.id === 'review_confirm' && processedValue === true && nextQ.id === 'complete') {
           // First add a message introducing the preview
@@ -261,6 +436,31 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
               questionId: nextQ.id,
             });
           }, 500);
+        } else if (isNewSection) {
+          // Show section completion message for the previous section
+          const completionMsg = getSectionCompletionMessage(currentQuestion.category);
+          if (completionMsg) {
+            addMessage({
+              role: 'assistant',
+              content: `✅ ${completionMsg}`,
+            });
+          }
+
+          // Show section intro message for the new section
+          const introMsg = getSectionIntroMessage(nextQ.category);
+          if (introMsg) {
+            addMessage({
+              role: 'assistant',
+              content: introMsg,
+            });
+          }
+
+          // Then show the first question of the new section
+          addMessage({
+            role: 'assistant',
+            content: getQuestionText(nextQ),
+            questionId: nextQ.id,
+          });
         } else {
           addMessage({
             role: 'assistant',
@@ -270,7 +470,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
         }
 
         // Track category change
-        if (nextQ.category !== currentQuestion.category) {
+        if (isNewSection) {
           trackEvent(AnalyticsEvents.CATEGORY_COMPLETED, {
             completedCategory: currentQuestion.category,
             newCategory: nextQ.category,
@@ -334,33 +534,57 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
             </div>
           )}
         </div>
-        <ProgressBar
-          current={progress.current}
-          total={progress.total}
-          showSteps
-          showPercentage
-        />
+        {/* Section-based progress indicator */}
+        <SectionProgressBar currentCategory={currentCategory} />
+        {/* Detailed step progress */}
+        <div className="mt-2 flex items-center justify-between text-xs text-[#52525b]">
+          <span>Question {progress.current} of {progress.total}</span>
+          <span className="text-green-500">{Math.round((progress.current / progress.total) * 100)}%</span>
+        </div>
       </div>
 
       {/* Messages container */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
-          message.content === PREVIEW_CARD_MARKER ? (
-            <div key={message.id} className="flex justify-start">
-              <InlinePreviewCard
-                resumeData={resumeData}
-                onViewFull={() => navigate('/preview/new', { state: { resumeData } })}
-              />
-            </div>
-          ) : (
+        {messages.map((message) => {
+          if (message.content === PREVIEW_CARD_MARKER) {
+            return (
+              <div key={message.id} className="flex justify-start">
+                <InlinePreviewCard
+                  resumeData={resumeData}
+                  onViewFull={() => navigate('/preview/new', { state: { resumeData } })}
+                />
+              </div>
+            );
+          }
+          if (message.content === EXPORT_OPTIONS_MARKER) {
+            return (
+              <div key={message.id} className="flex justify-start">
+                <ExportOptionsCard
+                  resumeData={resumeData}
+                  onViewPreview={() => navigate('/preview/new', { state: { resumeData } })}
+                />
+              </div>
+            );
+          }
+          if (message.content === GMAIL_GUIDE_MARKER) {
+            const personalInfo = resumeData?.personalInfo as { fullName?: string } | undefined;
+            return (
+              <div key={message.id} className="flex justify-start">
+                <GmailGuideCard
+                  suggestedUsername={personalInfo?.fullName}
+                />
+              </div>
+            );
+          }
+          return (
             <ChatBubble
               key={message.id}
               role={message.role}
               content={message.content}
               timestamp={message.timestamp}
             />
-          )
-        ))}
+          );
+        })}
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
