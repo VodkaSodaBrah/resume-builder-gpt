@@ -1,68 +1,61 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   FileText,
-  Download,
   Edit,
+  Download,
   Trash2,
-  LogOut,
   Clock,
-  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { useAuthStore } from '@/stores/authStore';
-import { useAnalyticsStore, AnalyticsEvents } from '@/stores/analyticsStore';
-
-interface ResumeListItem {
-  id: string;
-  templateStyle: string;
-  language: string;
-  createdAt: string;
-  updatedAt: string;
-  personalInfo?: { fullName: string; email: string };
-}
+import { UserButton } from '@/components/auth/UserButton';
+import { useAuth } from '@/hooks/useAuth';
+import { getResumes, deleteResume, Resume } from '@/lib/supabase';
 
 export const Dashboard: React.FC = () => {
-  const [resumes, setResumes] = useState<ResumeListItem[]>([]);
+  const [resumes, setResumes] = useState<Resume[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const { user, token, logout } = useAuthStore();
-  const { trackEvent } = useAnalyticsStore();
+  const { user, isLoaded } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchResumes();
-  }, []);
+    if (isLoaded && user) {
+      fetchResumes();
+    }
+  }, [isLoaded, user]);
 
   const fetchResumes = async () => {
-    try {
-      const response = await fetch('/api/resume/list', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+    if (!user) return;
 
-      const data = await response.json();
-      if (data.success) {
-        setResumes(data.resumes);
-      }
-    } catch (error) {
-      console.error('Failed to fetch resumes:', error);
+    try {
+      setError(null);
+      const data = await getResumes(user.id);
+      setResumes(data);
+    } catch (err) {
+      console.error('Failed to fetch resumes:', err);
+      setError('Failed to load resumes. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    trackEvent(AnalyticsEvents.LOGOUT);
-    logout();
-    navigate('/login');
+  const handleNewResume = () => {
+    navigate('/builder');
   };
 
-  const handleNewResume = () => {
-    trackEvent(AnalyticsEvents.RESUME_START);
-    navigate('/builder');
+  const handleDeleteResume = async (id: string) => {
+    if (!user || !confirm('Are you sure you want to delete this resume?')) return;
+
+    try {
+      await deleteResume(id, user.id);
+      setResumes(resumes.filter((r) => r.id !== id));
+    } catch (err) {
+      console.error('Failed to delete resume:', err);
+      setError('Failed to delete resume. Please try again.');
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -82,6 +75,18 @@ export const Dashboard: React.FC = () => {
     return labels[style] || style;
   };
 
+  const getResumeName = (resume: Resume) => {
+    return resume.name || resume.resume_data?.personalInfo?.fullName || 'Untitled Resume';
+  };
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
       {/* Header */}
@@ -95,14 +100,10 @@ export const Dashboard: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-[#a1a1aa]">
-                <User className="w-4 h-4" />
-                <span className="text-sm">{user?.fullName || user?.email}</span>
-              </div>
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline ml-2">Logout</span>
-              </Button>
+              <span className="text-sm text-[#a1a1aa] hidden sm:inline">
+                {user?.firstName || user?.emailAddresses?.[0]?.emailAddress}
+              </span>
+              <UserButton afterSignOutUrl="/" />
             </div>
           </div>
         </div>
@@ -113,12 +114,19 @@ export const Dashboard: React.FC = () => {
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-white mb-2">
-            Welcome back, {user?.fullName?.split(' ')[0] || 'there'}!
+            Welcome back, {user?.firstName || 'there'}!
           </h1>
           <p className="text-[#a1a1aa]">
             Manage your resumes and create new ones to land your dream job.
           </p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400">
+            {error}
+          </div>
+        )}
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -153,7 +161,7 @@ export const Dashboard: React.FC = () => {
             </div>
             <h3 className="text-lg font-semibold text-white mb-1">
               {resumes.length > 0
-                ? formatDate(resumes[0]?.updatedAt)
+                ? formatDate(resumes[0]?.updated_at)
                 : 'No activity'}
             </h3>
             <p className="text-sm text-[#a1a1aa]">
@@ -200,13 +208,13 @@ export const Dashboard: React.FC = () => {
                     </div>
                     <div>
                       <h3 className="font-medium text-white">
-                        {resume.personalInfo?.fullName || 'Untitled Resume'}
+                        {getResumeName(resume)}
                       </h3>
                       <div className="flex items-center gap-3 text-sm text-[#71717a]">
                         <span className="px-2 py-0.5 bg-[#27272a] rounded text-xs">
-                          {getTemplateLabel(resume.templateStyle)}
+                          {getTemplateLabel(resume.resume_data?.templateStyle || 'classic')}
                         </span>
-                        <span>Updated {formatDate(resume.updatedAt)}</span>
+                        <span>Updated {formatDate(resume.updated_at)}</span>
                       </div>
                     </div>
                   </div>
@@ -216,6 +224,7 @@ export const Dashboard: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate(`/builder/${resume.id}`)}
+                      title="Edit"
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
@@ -223,8 +232,18 @@ export const Dashboard: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate(`/preview/${resume.id}`)}
+                      title="Preview & Download"
                     >
                       <Download className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteResume(resume.id)}
+                      title="Delete"
+                      className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>

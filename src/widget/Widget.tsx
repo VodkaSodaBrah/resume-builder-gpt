@@ -1,14 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  ClerkProvider,
+  SignIn,
+  SignedIn,
+  SignedOut,
+  useUser,
+} from '@clerk/clerk-react';
 import { ChatContainer } from '@/components/chat/ChatContainer';
-import { LoginForm } from '@/components/auth/LoginForm';
-import { SignupForm } from '@/components/auth/SignupForm';
-import { useAuthStore } from '@/stores/authStore';
 import { useConversationStore } from '@/stores/conversationStore';
 import { useAnalyticsStore, AnalyticsEvents } from '@/stores/analyticsStore';
+import { createResume, type ResumeData } from '@/lib/supabase';
 import { X, Maximize2, Minimize2 } from 'lucide-react';
 
 const queryClient = new QueryClient();
+
+// Get Clerk publishable key from environment
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 export interface WidgetConfig {
   apiUrl?: string;
@@ -19,6 +27,7 @@ export interface WidgetConfig {
   defaultLanguage?: string;
   onComplete?: (resumeData: unknown) => void;
   onClose?: () => void;
+  clerkPublishableKey?: string; // Allow override for embedded use
 }
 
 interface WidgetProps {
@@ -27,25 +36,17 @@ interface WidgetProps {
   onToggle?: () => void;
 }
 
-type WidgetView = 'login' | 'signup' | 'builder';
-
 const WidgetContent: React.FC<{ config: WidgetConfig }> = ({ config }) => {
-  const { isAuthenticated } = useAuthStore();
+  const { user, isLoaded } = useUser();
   const { trackEvent } = useAnalyticsStore();
-  const [view, setView] = useState<WidgetView>('login');
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     trackEvent(AnalyticsEvents.WIDGET_OPENED, {
       companyName: config.companyName,
     });
   }, []);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      setView('builder');
-    }
-  }, [isAuthenticated]);
 
   const handleClose = () => {
     trackEvent(AnalyticsEvents.WIDGET_CLOSED);
@@ -56,6 +57,34 @@ const WidgetContent: React.FC<{ config: WidgetConfig }> = ({ config }) => {
     setIsExpanded(!isExpanded);
     trackEvent(isExpanded ? AnalyticsEvents.WIDGET_MINIMIZED : AnalyticsEvents.WIDGET_EXPANDED);
   };
+
+  const handleComplete = async (data: unknown) => {
+    trackEvent(AnalyticsEvents.RESUME_COMPLETED);
+
+    // Save to Supabase if user is authenticated
+    if (user && data) {
+      setIsSaving(true);
+      try {
+        const resumeData = data as ResumeData;
+        const name = resumeData.personalInfo?.fullName || 'Untitled Resume';
+        await createResume(user.id, name, resumeData);
+      } catch (error) {
+        console.error('Failed to save resume:', error);
+      } finally {
+        setIsSaving(false);
+      }
+    }
+
+    config.onComplete?.(data);
+  };
+
+  if (!isLoaded) {
+    return (
+      <div className="widget-container bg-[#0a0a0a] border border-[#27272a] rounded-xl shadow-2xl overflow-hidden flex items-center justify-center h-96">
+        <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -106,48 +135,65 @@ const WidgetContent: React.FC<{ config: WidgetConfig }> = ({ config }) => {
 
       {/* Widget Content */}
       <div className="flex-1 overflow-hidden">
-        {!isAuthenticated ? (
-          <div className="h-full overflow-y-auto p-4">
-            {view === 'login' ? (
-              <div className="space-y-4">
-                <LoginForm />
-                {config.allowSignup !== false && (
-                  <p className="text-center text-sm text-[#71717a]">
-                    Don't have an account?{' '}
-                    <button
-                      onClick={() => setView('signup')}
-                      className="text-green-500 hover:text-green-400"
-                    >
-                      Sign up
-                    </button>
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <SignupForm />
-                <p className="text-center text-sm text-[#71717a]">
-                  Already have an account?{' '}
-                  <button
-                    onClick={() => setView('login')}
-                    className="text-green-500 hover:text-green-400"
-                  >
-                    Sign in
-                  </button>
-                </p>
-              </div>
-            )}
+        <SignedOut>
+          <div className="h-full overflow-y-auto p-4 flex items-center justify-center">
+            <SignIn
+              routing="hash"
+              signUpUrl={config.allowSignup !== false ? undefined : '/sign-in'}
+              appearance={{
+                elements: {
+                  rootBox: 'w-full',
+                  card: 'bg-[#111111] border border-[#27272a] shadow-none',
+                  headerTitle: 'text-white text-lg',
+                  headerSubtitle: 'text-[#a1a1aa]',
+                  socialButtonsBlockButton: 'bg-[#1a1a1a] border-[#27272a] text-white hover:bg-[#27272a]',
+                  formFieldLabel: 'text-[#a1a1aa]',
+                  formFieldInput: 'bg-[#0a0a0a] border-[#27272a] text-white',
+                  formButtonPrimary: 'bg-green-500 hover:bg-green-600',
+                  footerActionLink: 'text-green-500 hover:text-green-400',
+                },
+              }}
+            />
           </div>
-        ) : (
-          <ChatContainer
-            onComplete={(data) => {
-              trackEvent(AnalyticsEvents.RESUME_COMPLETED);
-              config.onComplete?.(data);
-            }}
-          />
-        )}
+        </SignedOut>
+
+        <SignedIn>
+          {isSaving ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-[#a1a1aa]">Saving your resume...</p>
+              </div>
+            </div>
+          ) : (
+            <ChatContainer
+              isWidget
+              onComplete={handleComplete}
+            />
+          )}
+        </SignedIn>
       </div>
     </div>
+  );
+};
+
+const WidgetWithClerk: React.FC<{ config: WidgetConfig }> = ({ config }) => {
+  const pubKey = config.clerkPublishableKey || clerkPubKey;
+
+  if (!pubKey) {
+    return (
+      <div className="widget-container bg-[#0a0a0a] border border-[#27272a] rounded-xl p-4 text-center">
+        <p className="text-red-400">Missing Clerk configuration</p>
+      </div>
+    );
+  }
+
+  return (
+    <ClerkProvider publishableKey={pubKey}>
+      <QueryClientProvider client={queryClient}>
+        <WidgetContent config={config} />
+      </QueryClientProvider>
+    </ClerkProvider>
   );
 };
 
@@ -170,11 +216,7 @@ export const Widget: React.FC<WidgetProps> = ({
     );
   }
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      <WidgetContent config={config} />
-    </QueryClientProvider>
-  );
+  return <WidgetWithClerk config={config} />;
 };
 
 // Floating widget wrapper for embed

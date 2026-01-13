@@ -80,16 +80,12 @@ export interface Reference {
 }
 
 export interface ResumeData {
-  id: string;
-  userId: string;
   personalInfo: PersonalInfo;
   workExperience: WorkExperience[];
   education: Education[];
   volunteering: Volunteering[];
   skills: Skills;
   references: Reference[];
-  createdAt: string;
-  updatedAt: string;
   templateStyle: TemplateStyle;
   language: string;
   // Conversation flow flags
@@ -97,6 +93,11 @@ export interface ResumeData {
   hasVolunteering?: boolean;
   hasReferences?: boolean;
   referencesUponRequest?: boolean;
+  // Skills gate flags
+  hasTechnicalSkills?: boolean;
+  hasCertifications?: boolean;
+  hasLanguages?: boolean;
+  hasSoftSkills?: boolean;
 }
 
 export type TemplateStyle = 'classic' | 'modern' | 'professional';
@@ -113,6 +114,7 @@ export interface ChatMessage {
 }
 
 export type QuestionCategory =
+  | 'language'
   | 'intro'
   | 'personal'
   | 'work'
@@ -190,4 +192,68 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
   pageSize: number;
   totalCount: number;
   totalPages: number;
+}
+
+// AI Conversation types
+export interface ExtractedField {
+  path: string;                     // e.g., "personalInfo.fullName" or "workExperience[0].jobTitle"
+  value: unknown;                   // The extracted value
+  confidence: number;               // 0-1 confidence score
+  needsConfirmation: boolean;       // If user should confirm
+  clear?: boolean;                  // If true, clear/remove this field's data (for contradictions)
+}
+
+export type SpecialContentType = 'email_guide' | 'help_link' | 'example';
+
+export interface SpecialContent {
+  type: SpecialContentType;
+  content: string;
+  expandable?: boolean;
+}
+
+export interface ChatRequest {
+  messages: ChatMessage[];          // Full conversation history
+  currentResumeData: Partial<ResumeData>;
+  currentSection: QuestionCategory;
+  userMessage: string;
+  language: string;
+  followUpCount: number;
+}
+
+export interface ChatResponse {
+  assistantMessage: string;
+  extractedFields: ExtractedField[];
+  suggestedSection: QuestionCategory | null;
+  isComplete: boolean;
+  specialContent?: SpecialContent;
+  followUpNeeded: boolean;
+  confidence: number;
+}
+
+export interface AIConversationContext {
+  mentionedEntities: string[];      // Names, companies, etc. mentioned
+  answeredTopics: string[];         // What we've covered
+  userTone: 'confident' | 'uncertain' | 'frustrated' | 'neutral';
+  sessionStartTime: string;
+}
+
+export interface AIConversationState extends ConversationState {
+  // AI mode controls
+  isAIMode: boolean;
+
+  // Context tracking
+  conversationContext: AIConversationContext;
+  followUpCounts: Record<QuestionCategory, number>;
+
+  // Extraction tracking
+  extractedButUnconfirmed: ExtractedField[];
+  pendingFollowUp: string | null;
+
+  // Edge case handling
+  emailHelpShown: boolean;
+  userEscapeRequested: boolean;
+
+  // Performance tracking
+  aiResponseTimes: number[];
+  tokenUsage: { input: number; output: number; total: number };
 }

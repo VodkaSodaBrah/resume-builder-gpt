@@ -1,8 +1,16 @@
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization to avoid loading before Azure Functions sets env vars
+let openaiInstance: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (!openaiInstance) {
+    openaiInstance = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return openaiInstance;
+}
 
 export interface EnhancementResult {
   enhanced: string;
@@ -35,7 +43,7 @@ export const enhanceJobDescription = async (
   language: string = 'en'
 ): Promise<EnhancementResult> => {
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: RESUME_ENHANCEMENT_PROMPT },
@@ -66,7 +74,7 @@ export const suggestSkills = async (
       .map((exp) => `${exp.jobTitle}: ${exp.responsibilities}`)
       .join('\n\n');
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: SKILL_SUGGESTION_PROMPT },
@@ -98,7 +106,7 @@ export const translateContent = async (
   targetLanguage: string
 ): Promise<string> => {
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: TRANSLATION_PROMPT },
@@ -130,7 +138,7 @@ export const generateProfessionalSummary = async (
       .map((exp) => exp.jobTitle)
       .join(', ');
 
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
@@ -167,4 +175,128 @@ export const enhanceAllWorkExperiences = async (
     )
   );
   return results;
+};
+
+// Conversational AI types
+export interface ConversationMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface ConversationCompletionResult {
+  response: string;
+  extractedData: Record<string, unknown> | null;
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+}
+
+// Conversational completion for resume building
+export const getConversationCompletion = async (
+  systemPrompt: string,
+  messages: ConversationMessage[],
+  temperature: number = 0.7,
+  maxTokens: number = 1000
+): Promise<ConversationCompletionResult> => {
+  try {
+    const response = await getOpenAIClient().chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+      ],
+      temperature,
+      max_tokens: maxTokens,
+    });
+
+    const content = response.choices[0]?.message?.content?.trim() || '';
+
+    // Try to extract structured data from the response
+    // The AI is prompted to include <extracted_data>...</extracted_data> tags
+    let extractedData: Record<string, unknown> | null = null;
+    const extractedMatch = content.match(/<extracted_data>([\s\S]*?)<\/extracted_data>/);
+
+    if (extractedMatch) {
+      try {
+        extractedData = JSON.parse(extractedMatch[1].trim());
+      } catch {
+        // If JSON parsing fails, leave extractedData as null
+        console.warn('Failed to parse extracted data from AI response');
+      }
+    }
+
+    // Remove the extracted_data tags from the visible response
+    const cleanResponse = content.replace(/<extracted_data>[\s\S]*?<\/extracted_data>/g, '').trim();
+
+    return {
+      response: cleanResponse,
+      extractedData,
+      usage: {
+        promptTokens: response.usage?.prompt_tokens || 0,
+        completionTokens: response.usage?.completion_tokens || 0,
+        totalTokens: response.usage?.total_tokens || 0,
+      },
+    };
+  } catch (error) {
+    console.error('Error in conversation completion:', error);
+    throw error;
+  }
+};
+
+// Streaming conversation completion (for real-time responses)
+export const getConversationCompletionStream = async (
+  systemPrompt: string,
+  messages: ConversationMessage[],
+  onChunk: (chunk: string) => void,
+  temperature: number = 0.7,
+  maxTokens: number = 1000
+): Promise<{ fullResponse: string; extractedData: Record<string, unknown> | null }> => {
+  try {
+    const stream = await getOpenAIClient().chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+      ],
+      temperature,
+      max_tokens: maxTokens,
+      stream: true,
+    });
+
+    let fullResponse = '';
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      fullResponse += content;
+
+      // Don't stream the extracted_data tags
+      if (!fullResponse.includes('<extracted_data>')) {
+        onChunk(content);
+      }
+    }
+
+    // Parse extracted data after streaming completes
+    let extractedData: Record<string, unknown> | null = null;
+    const extractedMatch = fullResponse.match(/<extracted_data>([\s\S]*?)<\/extracted_data>/);
+
+    if (extractedMatch) {
+      try {
+        extractedData = JSON.parse(extractedMatch[1].trim());
+      } catch {
+        console.warn('Failed to parse extracted data from streamed response');
+      }
+    }
+
+    const cleanResponse = fullResponse.replace(/<extracted_data>[\s\S]*?<\/extracted_data>/g, '').trim();
+
+    return {
+      fullResponse: cleanResponse,
+      extractedData,
+    };
+  } catch (error) {
+    console.error('Error in streaming conversation completion:', error);
+    throw error;
+  }
 };

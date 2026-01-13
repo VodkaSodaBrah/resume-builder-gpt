@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, ArrowLeft, SkipForward } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import type { Question } from '@/types';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface ChatInputProps {
   question: Question | null;
@@ -23,6 +24,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     // Focus on input when question changes
@@ -70,7 +72,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onClick={onBack}
               leftIcon={<ArrowLeft className="w-4 h-4" />}
             >
-              Back
+              {t('ui.back', 'Back')}
             </Button>
           )}
           <div className="flex gap-3 ml-auto">
@@ -79,14 +81,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onClick={() => handleConfirm(false)}
               disabled={disabled}
             >
-              No
+              {t('ui.no', 'No')}
             </Button>
             <Button
               variant="primary"
               onClick={() => handleConfirm(true)}
               disabled={disabled}
             >
-              Yes
+              {t('ui.yes', 'Yes')}
             </Button>
           </div>
         </div>
@@ -117,7 +119,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onClick={onBack}
             leftIcon={<ArrowLeft className="w-4 h-4" />}
           >
-            Back
+            {t('ui.back', 'Back')}
           </Button>
         )}
       </div>
@@ -148,7 +150,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   onClick={onBack}
                   leftIcon={<ArrowLeft className="w-4 h-4" />}
                 >
-                  Back
+                  {t('ui.back', 'Back')}
                 </Button>
               )}
               {!question.isRequired && onSkip && (
@@ -159,7 +161,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   onClick={onSkip}
                   rightIcon={<SkipForward className="w-4 h-4" />}
                 >
-                  Skip
+                  {t('ui.skip', 'Skip')}
                 </Button>
               )}
             </div>
@@ -169,7 +171,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               disabled={disabled || (question.isRequired && !value.trim())}
               rightIcon={<Send className="w-4 h-4" />}
             >
-              Send
+              {t('ui.send', 'Send')}
             </Button>
           </div>
         </div>
@@ -212,7 +214,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onClick={onSkip}
             className="flex-shrink-0"
           >
-            Skip
+            {t('ui.skip', 'Skip')}
           </Button>
         )}
         <Button

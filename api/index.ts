@@ -14,3 +14,6 @@ import './resume/enhance';
 
 // Analytics functions
 import './analytics/events';
+
+// Chat function (AI conversational mode)
+import './chat/index';

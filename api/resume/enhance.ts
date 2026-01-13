@@ -1,6 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { z } from 'zod';
-import { authenticateRequest } from '../lib/auth';
 import {
   enhanceJobDescription,
   enhanceAllWorkExperiences,
@@ -19,14 +18,8 @@ export async function enhanceResume(
   context: InvocationContext
 ): Promise<HttpResponseInit> {
   try {
-    // Authenticate
-    const auth = await authenticateRequest(request.headers.get('authorization') || undefined);
-    if (!auth) {
-      return {
-        status: 401,
-        jsonBody: { success: false, error: 'Unauthorized' },
-      };
-    }
+    // No auth required - this is a public AI enhancement endpoint
+    // User authentication is handled by Clerk on the frontend
 
     const body = await request.json();
     const validation = enhanceSchema.safeParse(body);

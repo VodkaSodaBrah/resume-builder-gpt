@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Download,
@@ -7,73 +7,149 @@ import {
   FileCheck,
   Palette,
   RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuth } from '@/hooks/useAuth';
+import { useConversationStore } from '@/stores/conversationStore';
 import { useAnalyticsStore, AnalyticsEvents } from '@/stores/analyticsStore';
 import { downloadPDF, downloadDOCX } from '@/lib/resumeGenerator';
+import { getResume, supabase } from '@/lib/supabase';
 import type { ResumeData, TemplateStyle } from '@/types';
 
+// AI Enhancement helper - calls the Azure Functions API
+async function enhanceWithAI(
+  workExperiences: Array<{ jobTitle: string; responsibilities: string }>,
+  language: string = 'en'
+): Promise<Array<{ enhanced: string }> | null> {
+  try {
+    const response = await fetch('/api/resume/enhance', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'all_experiences',
+        data: { workExperiences },
+        language,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data?.success && data?.result) {
+      return data.result;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Enhancement failed:', error);
+    return null;
+  }
+}
+
 export const Preview: React.FC = () => {
+  const { resumeId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { token } = useAuthStore();
+  const { user, isLoaded } = useAuth();
   const { trackEvent } = useAnalyticsStore();
 
-  const [resumeData, setResumeData] = useState<ResumeData | null>(
-    location.state?.resumeData || null
-  );
+  // Get conversation store data as fallback
+  const conversationResumeData = useConversationStore((state) => state.resumeData);
+
+  // Try multiple data sources: location.state > conversationStore
+  // Cast conversationResumeData to ResumeData since it may be Partial but should have enough data to display
+  const initialData = location.state?.resumeData ||
+    (conversationResumeData && Object.keys(conversationResumeData).length > 0 ? conversationResumeData as ResumeData : null);
+
+  const [resumeData, setResumeData] = useState<ResumeData | null>(initialData);
+  const [isLoading, setIsLoading] = useState(!initialData && !!resumeId);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateStyle>(
-    resumeData?.templateStyle || 'modern'
+    initialData?.templateStyle || 'modern'
   );
 
-  // Enhance resume content with AI
+  // Load resume from Supabase if resumeId provided and no initial data
   useEffect(() => {
-    if (resumeData && !resumeData.workExperience?.[0]?.enhancedResponsibilities) {
+    if (resumeId && !resumeData && isLoaded && user) {
+      loadResume();
+    } else if (!resumeId && !resumeData && conversationResumeData && Object.keys(conversationResumeData).length > 0) {
+      // Fallback: use conversation store data if no resumeId
+      setResumeData(conversationResumeData as ResumeData);
+      setIsLoading(false);
+    }
+  }, [resumeId, resumeData, isLoaded, user, conversationResumeData]);
+
+  const loadResume = async () => {
+    if (!user || !resumeId) return;
+
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      const resume = await getResume(resumeId, user.id);
+      if (resume) {
+        setResumeData(resume.resume_data);
+        setSelectedTemplate(resume.resume_data.templateStyle || 'modern');
+      } else {
+        // Database returned no data - try conversation store as fallback
+        if (conversationResumeData && Object.keys(conversationResumeData).length > 0) {
+          console.log('Using conversation store data as fallback');
+          setResumeData(conversationResumeData as ResumeData);
+        } else {
+          setLoadError('Resume not found. It may have been deleted or you may not have permission to view it.');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load resume:', error);
+      // Try conversation store as fallback on error
+      if (conversationResumeData && Object.keys(conversationResumeData).length > 0) {
+        console.log('Database error - using conversation store data as fallback');
+        setResumeData(conversationResumeData as ResumeData);
+      } else {
+        setLoadError('Failed to load resume. Please try again or create a new one.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Enhance resume content with AI (placeholder - will use Supabase Edge Functions later)
+  useEffect(() => {
+    if (resumeData && !resumeData.workExperience?.[0]?.enhancedResponsibilities && user) {
       enhanceContent();
     }
-  }, []);
+  }, [resumeData, user]);
 
   const enhanceContent = async () => {
-    if (!resumeData || !token) return;
+    if (!resumeData || !user) return;
+
+    // Skip if no work experience to enhance
+    if (!resumeData.workExperience || resumeData.workExperience.length === 0) {
+      return;
+    }
 
     setIsEnhancing(true);
     trackEvent(AnalyticsEvents.AI_ENHANCEMENT_START);
 
     try {
-      // Enhance work experiences
-      if (resumeData.workExperience && resumeData.workExperience.length > 0) {
-        const response = await fetch('/api/resume/enhance', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            type: 'all_experiences',
-            data: {
-              workExperiences: resumeData.workExperience.map((exp) => ({
-                jobTitle: exp.jobTitle,
-                responsibilities: exp.responsibilities,
-              })),
-            },
-            language: resumeData.language || 'en',
-          }),
-        });
+      const workExperiences = resumeData.workExperience.map((exp) => ({
+        jobTitle: exp.jobTitle,
+        responsibilities: exp.responsibilities,
+      }));
 
-        const data = await response.json();
-        if (data.success && data.result) {
-          const enhancedData = { ...resumeData };
-          enhancedData.workExperience = resumeData.workExperience.map(
-            (exp, index) => ({
-              ...exp,
-              enhancedResponsibilities: data.result[index]?.enhanced || exp.responsibilities,
-            })
-          );
-          setResumeData(enhancedData);
-        }
+      const enhanced = await enhanceWithAI(workExperiences, resumeData.language || 'en');
+
+      if (enhanced && enhanced.length > 0) {
+        const enhancedData = { ...resumeData };
+        enhancedData.workExperience = resumeData.workExperience.map((exp, index) => ({
+          ...exp,
+          enhancedResponsibilities: enhanced[index]?.enhanced || exp.responsibilities,
+        }));
+        setResumeData(enhancedData);
       }
 
       trackEvent(AnalyticsEvents.AI_ENHANCEMENT_COMPLETE);
@@ -122,18 +198,43 @@ export const Preview: React.FC = () => {
     trackEvent(AnalyticsEvents.TEMPLATE_SELECTED, { template });
   };
 
-  if (!resumeData) {
+  if (isLoading || !isLoaded) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="text-center">
-          <FileText className="w-12 h-12 text-[#27272a] mx-auto mb-4" />
-          <h2 className="text-lg font-medium text-white mb-2">No Resume Data</h2>
-          <p className="text-[#a1a1aa] mb-6">
-            Please complete the resume builder first.
-          </p>
-          <Button variant="primary" onClick={() => navigate('/builder')}>
-            Start Building
-          </Button>
+        <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!resumeData) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          {loadError ? (
+            <>
+              <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+              <h2 className="text-lg font-medium text-white mb-2">Unable to Load Resume</h2>
+              <p className="text-[#a1a1aa] mb-6">{loadError}</p>
+            </>
+          ) : (
+            <>
+              <FileText className="w-12 h-12 text-[#27272a] mx-auto mb-4" />
+              <h2 className="text-lg font-medium text-white mb-2">No Resume Data</h2>
+              <p className="text-[#a1a1aa] mb-6">
+                Please complete the resume builder first.
+              </p>
+            </>
+          )}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button variant="primary" onClick={() => navigate('/builder')}>
+              {loadError ? 'Create New Resume' : 'Start Building'}
+            </Button>
+            {loadError && (
+              <Button variant="secondary" onClick={() => navigate('/dashboard')}>
+                Go to Dashboard
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     );

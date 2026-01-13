@@ -31,7 +31,7 @@ const generateId = () => Math.random().toString(36).substring(2, 15);
 
 const initialState: ConversationState = {
   currentQuestionIndex: 0,
-  currentCategory: 'intro',
+  currentCategory: 'language',
   messages: [],
   resumeData: {},
   isTyping: false,

@@ -1,47 +1,72 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  ClerkProvider,
+  SignIn,
+  SignUp,
+  SignedIn,
+  SignedOut,
+  RedirectToSignIn,
+  useUser,
+  useClerk,
+} from '@clerk/clerk-react';
+import {
+  DevAuthProvider,
+  DevSignIn,
+  DevSignUp,
+  useDevAuth,
+  isDevMode,
+} from '@/contexts/DevAuthContext';
 
 // Pages
 import { Dashboard } from '@/pages/Dashboard';
 import { Builder } from '@/pages/Builder';
 import { Preview } from '@/pages/Preview';
 
-// Auth Components
-import { LoginForm } from '@/components/auth/LoginForm';
-import { SignupForm } from '@/components/auth/SignupForm';
-
-// Stores
-import { useAuthStore } from '@/stores/authStore';
-
 const queryClient = new QueryClient();
 
-// Protected Route wrapper
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuthStore();
-  const location = useLocation();
+// Get Clerk publishable key from environment
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+// Check if we're in dev mode (localhost)
+const DEV_MODE = isDevMode();
+
+// Protected Route wrapper for development mode
+const DevProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isSignedIn, isLoaded } = useDevAuth();
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return <Navigate to="/sign-in" replace />;
   }
 
   return <>{children}</>;
 };
 
-// Auth Route wrapper (redirects to dashboard if already logged in)
-const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuthStore();
-  const location = useLocation();
-
-  if (isAuthenticated) {
-    const from = (location.state as { from?: Location })?.from?.pathname || '/dashboard';
-    return <Navigate to={from} replace />;
-  }
-
-  return <>{children}</>;
+// Protected Route wrapper using Clerk (production)
+const ClerkProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return (
+    <>
+      <SignedIn>{children}</SignedIn>
+      <SignedOut>
+        <RedirectToSignIn />
+      </SignedOut>
+    </>
+  );
 };
 
-// Auth Layout
+// Use appropriate protected route based on mode
+const ProtectedRoute = DEV_MODE ? DevProtectedRoute : ClerkProtectedRoute;
+
+// Auth Layout for sign-in/sign-up pages
 const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
@@ -55,8 +80,15 @@ const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <p className="text-[#a1a1aa]">
             Create professional resumes with AI assistance
           </p>
+          {DEV_MODE && (
+            <p className="text-yellow-500 text-sm mt-2">
+              Development Mode (localhost)
+            </p>
+          )}
         </div>
-        {children}
+        <div className="flex justify-center">
+          {children}
+        </div>
         <p className="text-center text-xs text-[#71717a] mt-8">
           Powered by{' '}
           <a
@@ -73,14 +105,30 @@ const AuthLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   );
 };
 
-// Landing Page
-const LandingPage: React.FC = () => {
-  const { isAuthenticated } = useAuthStore();
+// Development Landing Page
+const DevLandingPage: React.FC = () => {
+  const { isSignedIn } = useDevAuth();
 
-  if (isAuthenticated) {
+  if (isSignedIn) {
     return <Navigate to="/dashboard" replace />;
   }
 
+  return <LandingPageContent />;
+};
+
+// Clerk Landing Page
+const ClerkLandingPage: React.FC = () => {
+  const { isSignedIn } = useUser();
+
+  if (isSignedIn) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <LandingPageContent />;
+};
+
+// Landing Page Content (shared)
+const LandingPageContent: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
       {/* Hero Section */}
@@ -91,6 +139,14 @@ const LandingPage: React.FC = () => {
             <span className="text-white font-bold text-3xl">Resume Builder</span>
             <span className="text-green-500 font-mono text-3xl">/&gt;</span>
           </div>
+
+          {DEV_MODE && (
+            <div className="mb-4 px-4 py-2 bg-yellow-500/20 border border-yellow-500/50 rounded-lg inline-block">
+              <p className="text-yellow-500 text-sm">
+                Development Mode - Clerk auth bypassed for localhost
+              </p>
+            </div>
+          )}
 
           <h1 className="text-4xl sm:text-5xl font-bold text-white mb-6">
             Create Professional Resumes
@@ -107,13 +163,13 @@ const LandingPage: React.FC = () => {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href="/signup"
+              href="/sign-up"
               className="px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold hover:from-green-600 hover:to-green-700 transition-all shadow-lg shadow-green-500/25"
             >
               Get Started Free
             </a>
             <a
-              href="/login"
+              href="/sign-in"
               className="px-8 py-4 bg-[#1a1a1a] border border-[#27272a] text-white rounded-xl font-semibold hover:bg-[#27272a] transition-all"
             >
               Sign In
@@ -125,7 +181,7 @@ const LandingPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-20">
           <div className="p-6 bg-[#111111] border border-[#27272a] rounded-xl">
             <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">💬</span>
+              <span className="text-2xl">&#128172;</span>
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">
               Guided Conversation
@@ -138,7 +194,7 @@ const LandingPage: React.FC = () => {
 
           <div className="p-6 bg-[#111111] border border-[#27272a] rounded-xl">
             <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">✨</span>
+              <span className="text-2xl">&#10024;</span>
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">
               AI-Enhanced Writing
@@ -151,7 +207,7 @@ const LandingPage: React.FC = () => {
 
           <div className="p-6 bg-[#111111] border border-[#27272a] rounded-xl">
             <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">📄</span>
+              <span className="text-2xl">&#128196;</span>
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">
               ATS-Friendly Templates
@@ -184,160 +240,233 @@ const LandingPage: React.FC = () => {
   );
 };
 
-// Email Verification Page
-const VerifyEmail: React.FC = () => {
-  const [status, setStatus] = React.useState<'loading' | 'success' | 'error'>('loading');
-  const location = useLocation();
-  const { verifyEmail } = useAuthStore();
+// Use appropriate landing page based on mode
+const LandingPage = DEV_MODE ? DevLandingPage : ClerkLandingPage;
 
-  React.useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const token = params.get('token');
+// Development Routes
+const DevAppRoutes: React.FC = () => {
+  return (
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/" element={<LandingPage />} />
 
-    if (token) {
-      verifyEmail(token)
-        .then(() => setStatus('success'))
-        .catch(() => setStatus('error'));
-    } else {
-      setStatus('error');
-    }
-  }, [location, verifyEmail]);
+      {/* Auth Routes - Development mode */}
+      <Route
+        path="/sign-in/*"
+        element={
+          <AuthLayout>
+            <DevSignIn afterSignInUrl="/dashboard" />
+          </AuthLayout>
+        }
+      />
+      <Route
+        path="/sign-up/*"
+        element={
+          <AuthLayout>
+            <DevSignUp afterSignUpUrl="/dashboard" />
+          </AuthLayout>
+        }
+      />
+
+      {/* Protected Routes */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/builder"
+        element={
+          <ProtectedRoute>
+            <Builder />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/builder/:resumeId"
+        element={
+          <ProtectedRoute>
+            <Builder />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/preview"
+        element={
+          <ProtectedRoute>
+            <Preview />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/preview/:resumeId"
+        element={
+          <ProtectedRoute>
+            <Preview />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+};
+
+// Clerk Routes (production)
+const ClerkAppRoutes: React.FC = () => {
+  return (
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/" element={<LandingPage />} />
+
+      {/* Auth Routes - Clerk handles these */}
+      <Route
+        path="/sign-in/*"
+        element={
+          <AuthLayout>
+            <SignIn
+              routing="path"
+              path="/sign-in"
+              signUpUrl="/sign-up"
+              afterSignInUrl="/dashboard"
+              appearance={{
+                elements: {
+                  rootBox: 'mx-auto',
+                  card: 'bg-[#111111] border border-[#27272a]',
+                  headerTitle: 'text-white',
+                  headerSubtitle: 'text-[#a1a1aa]',
+                  socialButtonsBlockButton: 'bg-[#1a1a1a] border-[#27272a] text-white hover:bg-[#27272a]',
+                  formFieldLabel: 'text-[#a1a1aa]',
+                  formFieldInput: 'bg-[#0a0a0a] border-[#27272a] text-white',
+                  formButtonPrimary: 'bg-green-500 hover:bg-green-600',
+                  footerActionLink: 'text-green-500 hover:text-green-400',
+                },
+              }}
+            />
+          </AuthLayout>
+        }
+      />
+      <Route
+        path="/sign-up/*"
+        element={
+          <AuthLayout>
+            <SignUp
+              routing="path"
+              path="/sign-up"
+              signInUrl="/sign-in"
+              afterSignUpUrl="/dashboard"
+              appearance={{
+                elements: {
+                  rootBox: 'mx-auto',
+                  card: 'bg-[#111111] border border-[#27272a]',
+                  headerTitle: 'text-white',
+                  headerSubtitle: 'text-[#a1a1aa]',
+                  socialButtonsBlockButton: 'bg-[#1a1a1a] border-[#27272a] text-white hover:bg-[#27272a]',
+                  formFieldLabel: 'text-[#a1a1aa]',
+                  formFieldInput: 'bg-[#0a0a0a] border-[#27272a] text-white',
+                  formButtonPrimary: 'bg-green-500 hover:bg-green-600',
+                  footerActionLink: 'text-green-500 hover:text-green-400',
+                },
+              }}
+            />
+          </AuthLayout>
+        }
+      />
+
+      {/* Protected Routes */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/builder"
+        element={
+          <ProtectedRoute>
+            <Builder />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/builder/:resumeId"
+        element={
+          <ProtectedRoute>
+            <Builder />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/preview"
+        element={
+          <ProtectedRoute>
+            <Preview />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/preview/:resumeId"
+        element={
+          <ProtectedRoute>
+            <Preview />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+};
+
+// Development App (without Clerk)
+const DevApp: React.FC = () => {
+  return (
+    <DevAuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <DevAppRoutes />
+        </BrowserRouter>
+      </QueryClientProvider>
+    </DevAuthProvider>
+  );
+};
+
+// Production App (with Clerk)
+const ClerkApp: React.FC = () => {
+  if (!clerkPubKey) {
+    throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY environment variable');
+  }
 
   return (
-    <AuthLayout>
-      <div className="terminal-window max-w-md mx-auto">
-        <div className="terminal-header">
-          <div className="terminal-dot red" />
-          <div className="terminal-dot yellow" />
-          <div className="terminal-dot green" />
-          <span className="terminal-title">verify.sh</span>
-        </div>
-        <div className="p-6 text-center">
-          {status === 'loading' && (
-            <>
-              <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-white">Verifying your email...</p>
-            </>
-          )}
-          {status === 'success' && (
-            <>
-              <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">✓</span>
-              </div>
-              <h2 className="text-xl font-bold text-white mb-2">Email Verified!</h2>
-              <p className="text-[#a1a1aa] mb-6">
-                Your account is now active. You can start building your resume.
-              </p>
-              <a
-                href="/dashboard"
-                className="inline-block px-6 py-3 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors"
-              >
-                Go to Dashboard
-              </a>
-            </>
-          )}
-          {status === 'error' && (
-            <>
-              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">!</span>
-              </div>
-              <h2 className="text-xl font-bold text-white mb-2">Verification Failed</h2>
-              <p className="text-[#a1a1aa] mb-6">
-                The verification link is invalid or has expired.
-              </p>
-              <a
-                href="/login"
-                className="inline-block px-6 py-3 bg-[#1a1a1a] border border-[#27272a] text-white rounded-lg font-medium hover:bg-[#27272a] transition-colors"
-              >
-                Back to Login
-              </a>
-            </>
-          )}
-        </div>
-      </div>
-    </AuthLayout>
+    <ClerkProvider
+      publishableKey={clerkPubKey}
+      afterSignInUrl="/dashboard"
+      afterSignUpUrl="/dashboard"
+    >
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <ClerkAppRoutes />
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ClerkProvider>
   );
 };
 
 function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<LandingPage />} />
+  // Use dev mode on localhost, Clerk in production
+  if (DEV_MODE) {
+    console.log('Running in Development Mode - Clerk auth bypassed');
+    return <DevApp />;
+  }
 
-          {/* Auth Routes */}
-          <Route
-            path="/login"
-            element={
-              <AuthRoute>
-                <AuthLayout>
-                  <LoginForm />
-                </AuthLayout>
-              </AuthRoute>
-            }
-          />
-          <Route
-            path="/signup"
-            element={
-              <AuthRoute>
-                <AuthLayout>
-                  <SignupForm />
-                </AuthLayout>
-              </AuthRoute>
-            }
-          />
-          <Route path="/verify-email" element={<VerifyEmail />} />
-
-          {/* Protected Routes */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/builder"
-            element={
-              <ProtectedRoute>
-                <Builder />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/builder/:resumeId"
-            element={
-              <ProtectedRoute>
-                <Builder />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/preview"
-            element={
-              <ProtectedRoute>
-                <Preview />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/preview/:resumeId"
-            element={
-              <ProtectedRoute>
-                <Preview />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </QueryClientProvider>
-  );
+  return <ClerkApp />;
 }
 
 export default App;

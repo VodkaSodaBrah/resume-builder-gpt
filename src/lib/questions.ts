@@ -1,7 +1,19 @@
 import type { Question, QuestionCategory } from '@/types';
+import { SUPPORTED_LANGUAGES, type SupportedLanguage } from './i18n';
 
 // Question flow definition - one question at a time
 export const questions: Question[] = [
+  // Language Selection - First question, always in English with native language labels
+  {
+    id: 'language_select',
+    category: 'language',
+    question: "**What language would you like to use?**\n\nEnglish | Espanol | Francais | Deutsch | Portugues\n中文 | 日本語 | 한국어 | العربية | हिन्दी\n\nJust type your preferred language!",
+    field: 'language',
+    isRequired: true,
+    inputType: 'select',
+    options: SUPPORTED_LANGUAGES.map(lang => `${lang.nativeLabel} (${lang.label})`),
+  },
+
   // Introduction
   {
     id: 'intro_welcome',
@@ -255,42 +267,78 @@ export const questions: Question[] = [
     skipCondition: (data) => data.hasVolunteering === false,
   },
 
-  // Skills
+  // Skills - with gate questions for modular flow
   {
-    id: 'skills_certifications',
+    id: 'skills_has_technical',
     category: 'skills',
-    question: "Do you have any certifications or licenses? (Things like CPR, forklift license, food handler's card, etc.) List them separated by commas, or say 'none' if you don't have any.",
-    field: 'skills.certifications',
-    isRequired: false,
-    inputType: 'text',
-    placeholder: 'e.g., CPR Certified, Food Handler Card, Driver License',
+    question: "Do you have any technical or job-related skills? (Computer skills, equipment you can use, software you know, etc.)",
+    field: 'hasTechnicalSkills',
+    isRequired: true,
+    inputType: 'confirm',
   },
   {
     id: 'skills_technical',
     category: 'skills',
-    question: "What technical or job-related skills do you have? (Computer skills, equipment you can use, software you know, etc.)",
+    question: "What technical or job-related skills do you have?",
     field: 'skills.technicalSkills',
     isRequired: false,
     inputType: 'textarea',
     placeholder: 'e.g., Microsoft Office, Cash Register, Customer Service, Inventory Management',
+    skipCondition: (data) => data.hasTechnicalSkills === false,
   },
   {
-    id: 'skills_soft',
+    id: 'skills_has_certifications',
     category: 'skills',
-    question: "What are some of your personal strengths? (Things like teamwork, communication, problem-solving, etc.)",
-    field: 'skills.softSkills',
+    question: "Do you have any certifications or licenses? (Things like CPR, forklift license, food handler's card, etc.)",
+    field: 'hasCertifications',
+    isRequired: true,
+    inputType: 'confirm',
+  },
+  {
+    id: 'skills_certifications',
+    category: 'skills',
+    question: "What certifications or licenses do you have?",
+    field: 'skills.certifications',
     isRequired: false,
-    inputType: 'textarea',
-    placeholder: 'e.g., Team player, Quick learner, Good communication, Reliable',
+    inputType: 'text',
+    placeholder: 'e.g., CPR Certified, Food Handler Card, Driver License',
+    skipCondition: (data) => data.hasCertifications === false,
+  },
+  {
+    id: 'skills_has_languages',
+    category: 'skills',
+    question: "Do you speak any languages other than English?",
+    field: 'hasLanguages',
+    isRequired: true,
+    inputType: 'confirm',
   },
   {
     id: 'skills_languages',
     category: 'skills',
-    question: "What languages do you speak? Please include your level (basic, conversational, professional, or native/fluent) for each.",
+    question: "What languages do you speak?",
     field: 'skills.languages',
     isRequired: false,
     inputType: 'textarea',
-    placeholder: 'e.g., English (native), Spanish (conversational)',
+    placeholder: 'e.g., Spanish (fluent), French (conversational)',
+    skipCondition: (data) => data.hasLanguages === false,
+  },
+  {
+    id: 'skills_has_soft',
+    category: 'skills',
+    question: "Would you like to highlight any personal strengths?",
+    field: 'hasSoftSkills',
+    isRequired: true,
+    inputType: 'confirm',
+  },
+  {
+    id: 'skills_soft',
+    category: 'skills',
+    question: "What are your key personal strengths?",
+    field: 'skills.softSkills',
+    isRequired: false,
+    inputType: 'textarea',
+    placeholder: 'e.g., Team player, Quick learner, Good communication, Reliable',
+    skipCondition: (data) => data.hasSoftSkills === false,
   },
 
   // References
@@ -394,6 +442,7 @@ export const questions: Question[] = [
 
 export const getCategoryProgress = (category: QuestionCategory): { current: number; total: number } => {
   const categoryOrder: QuestionCategory[] = [
+    'language',
     'intro',
     'personal',
     'work',
@@ -410,6 +459,7 @@ export const getCategoryProgress = (category: QuestionCategory): { current: numb
 
 export const getCategoryLabel = (category: QuestionCategory): string => {
   const labels: Record<QuestionCategory, string> = {
+    language: 'Language',
     intro: 'Getting Started',
     personal: 'Personal Information',
     work: 'Work Experience',
