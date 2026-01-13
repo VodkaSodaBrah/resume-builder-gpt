@@ -139,16 +139,21 @@ export const questions: Question[] = [
     isRequired: true,
     inputType: 'text',
     placeholder: 'e.g., December 2023 or 12/2023',
-    skipCondition: (data) => data.hasWorkExperience === false || data.workExperience?.[0]?.isCurrentJob === true,
+    // Check the most recent/last work experience entry for isCurrentJob
+    skipCondition: (data) => {
+      if (data.hasWorkExperience === false) return true;
+      const lastEntry = data.workExperience?.[data.workExperience.length - 1];
+      return lastEntry?.isCurrentJob === true;
+    },
   },
   {
     id: 'work_responsibilities_1',
     category: 'work',
-    question: "What did you do at this job? Describe your main tasks and any accomplishments. Don't worry about making it sound perfect - I'll help polish it!",
+    question: "Describe **2-3 key responsibilities** at this job. Try to include:\n\n• What you did (your main tasks)\n• How you did it (tools, methods, or skills used)\n• Results achieved (numbers, improvements, or outcomes if possible)\n\nDon't worry about making it sound perfect - I'll help polish it!",
     field: 'workExperience[0].responsibilities',
     isRequired: true,
     inputType: 'textarea',
-    placeholder: 'e.g., Helped customers, managed inventory, trained new employees...',
+    placeholder: 'Example: Served 50+ customers daily, processed cash and card payments accurately, trained 3 new team members on register operations, maintained store displays which increased product visibility',
     skipCondition: (data) => data.hasWorkExperience === false,
   },
   {
@@ -214,7 +219,19 @@ export const questions: Question[] = [
     isRequired: true,
     inputType: 'text',
     placeholder: 'e.g., 2024',
-    skipCondition: (data) => data.education?.[0]?.isCurrentlyStudying === true,
+    // Check the most recent/last education entry for isCurrentlyStudying
+    skipCondition: (data) => {
+      const lastEntry = data.education?.[data.education.length - 1];
+      return lastEntry?.isCurrentlyStudying === true;
+    },
+  },
+  {
+    id: 'education_add_more',
+    category: 'education',
+    question: "Would you like to add another school or degree? (e.g., another college, certification program, or high school)",
+    field: 'addMoreEducation',
+    isRequired: true,
+    inputType: 'confirm',
   },
 
   // Volunteering
@@ -259,11 +276,20 @@ export const questions: Question[] = [
   {
     id: 'volunteering_responsibilities',
     category: 'volunteering',
-    question: "Briefly describe what you did as a volunteer:",
+    question: "Describe **2-3 things you did** as a volunteer. Include:\n\n• Your main tasks and activities\n• Any impact or results (people helped, events organized, etc.)\n• Skills you used or developed",
     field: 'volunteering[0].responsibilities',
     isRequired: true,
     inputType: 'textarea',
-    placeholder: 'e.g., Sorted and packed food donations, helped distribute meals to families...',
+    placeholder: 'Example: Sorted and packed 200+ food boxes weekly for distribution, greeted and assisted 30+ families during food drives, coordinated with team of 10 volunteers to organize community events',
+    skipCondition: (data) => data.hasVolunteering === false,
+  },
+  {
+    id: 'volunteering_add_more',
+    category: 'volunteering',
+    question: "Would you like to add another volunteer experience?",
+    field: 'addMoreVolunteering',
+    isRequired: true,
+    inputType: 'confirm',
     skipCondition: (data) => data.hasVolunteering === false,
   },
 
@@ -279,11 +305,11 @@ export const questions: Question[] = [
   {
     id: 'skills_technical',
     category: 'skills',
-    question: "What technical or job-related skills do you have?",
+    question: "List your **top 3-5 technical skills**. These are specific, job-related abilities like:\n\n• Software (Excel, QuickBooks, Photoshop)\n• Equipment (forklift, POS systems, medical devices)\n• Technical abilities (data entry, bookkeeping, programming)\n\nSeparate each skill with a comma.",
     field: 'skills.technicalSkills',
     isRequired: false,
     inputType: 'textarea',
-    placeholder: 'e.g., Microsoft Office, Cash Register, Customer Service, Inventory Management',
+    placeholder: 'Example: Microsoft Excel (advanced), Point of Sale systems, Data entry (60 WPM), QuickBooks, Social media management',
     skipCondition: (data) => data.hasTechnicalSkills === false,
   },
   {
@@ -333,11 +359,11 @@ export const questions: Question[] = [
   {
     id: 'skills_soft',
     category: 'skills',
-    question: "What are your key personal strengths?",
+    question: "List **3-5 soft skills** (personal strengths that make you good at your job):\n\n• Communication: leadership, teamwork, customer service\n• Work ethic: reliable, punctual, detail-oriented\n• Problem-solving: analytical thinking, adaptability, creativity\n\nSeparate each with a comma.",
     field: 'skills.softSkills',
     isRequired: false,
     inputType: 'textarea',
-    placeholder: 'e.g., Team player, Quick learner, Good communication, Reliable',
+    placeholder: 'Example: Strong communication, Team leadership, Problem-solving, Time management, Attention to detail',
     skipCondition: (data) => data.hasSoftSkills === false,
   },
 
@@ -409,6 +435,15 @@ export const questions: Question[] = [
     placeholder: 'e.g., Former Supervisor, Manager, Teacher',
     skipCondition: (data) => data.hasReferences === false || data.referencesUponRequest === true,
   },
+  {
+    id: 'references_add_more',
+    category: 'references',
+    question: "Would you like to add another reference? (Most employers like to see 2-3 references)",
+    field: 'addMoreReferences',
+    isRequired: true,
+    inputType: 'confirm',
+    skipCondition: (data) => data.hasReferences === false || data.referencesUponRequest === true,
+  },
 
   // Review
   {
@@ -439,6 +474,50 @@ export const questions: Question[] = [
     inputType: 'confirm',
   },
 ];
+
+// Map of "add more" question IDs to the first question of that section
+export const ADD_MORE_SECTION_MAP: Record<string, { firstQuestionId: string; sectionKey: string }> = {
+  'work_add_more': { firstQuestionId: 'work_company_1', sectionKey: 'work' },
+  'education_add_more': { firstQuestionId: 'education_school', sectionKey: 'education' },
+  'volunteering_add_more': { firstQuestionId: 'volunteering_org', sectionKey: 'volunteering' },
+  'references_add_more': { firstQuestionId: 'reference_name', sectionKey: 'references' },
+};
+
+// Get the index of a question by its ID
+export const getQuestionIndexById = (questionId: string): number => {
+  return questions.findIndex(q => q.id === questionId);
+};
+
+// Transform a field path to use the correct index for multi-entry sections
+export const transformFieldPath = (
+  field: string,
+  sectionKey: string,
+  entryIndex: number
+): string => {
+  // Match patterns like "workExperience[0].fieldName" or "education[0].fieldName"
+  const sectionPatterns: Record<string, RegExp> = {
+    'work': /workExperience\[\d+\]/,
+    'education': /education\[\d+\]/,
+    'volunteering': /volunteering\[\d+\]/,
+    'references': /references\[\d+\]/,
+  };
+
+  const sectionNames: Record<string, string> = {
+    'work': 'workExperience',
+    'education': 'education',
+    'volunteering': 'volunteering',
+    'references': 'references',
+  };
+
+  const pattern = sectionPatterns[sectionKey];
+  const sectionName = sectionNames[sectionKey];
+
+  if (pattern && sectionName && pattern.test(field)) {
+    return field.replace(pattern, `${sectionName}[${entryIndex}]`);
+  }
+
+  return field;
+};
 
 export const getCategoryProgress = (category: QuestionCategory): { current: number; total: number } => {
   const categoryOrder: QuestionCategory[] = [

@@ -17,25 +17,78 @@ export interface EnhancementResult {
   suggestions?: string[];
 }
 
-// System prompts for different tasks
-const RESUME_ENHANCEMENT_PROMPT = `You are a professional resume writer helping people create impressive resumes. Your task is to enhance job descriptions and responsibilities to sound more professional and impactful while remaining truthful to the original content.
+// ============================================================================
+// OPTIMIZED SYSTEM PROMPTS FOR GPT-4o-mini
+// ============================================================================
+// Best practices applied:
+// 1. Concise, structured instructions (token-efficient)
+// 2. Explicit output format with examples
+// 3. Role constraints clearly defined
+// 4. Numbered guidelines for consistency
+// ============================================================================
 
-Guidelines:
-- Use strong action verbs (Managed, Developed, Implemented, Led, Created, Achieved)
-- Quantify achievements where possible (add reasonable estimates if not provided)
-- Keep the enhanced version concise but impactful
-- Make it ATS-friendly (use standard terminology)
-- Maintain the original meaning - don't invent new responsibilities
-- Format as bullet points if the input describes multiple tasks
-- Output in the same language as the input
+const RESUME_ENHANCEMENT_PROMPT = `Role: Expert resume writer specializing in ATS-optimized content.
 
-Return only the enhanced text, no explanations.`;
+Task: Transform job descriptions into impactful, professional bullet points.
 
-const SKILL_SUGGESTION_PROMPT = `You are a career advisor helping people identify skills for their resume. Based on the job experience provided, suggest additional relevant skills they likely have but didn't mention.
+Rules:
+1. Start each bullet with a strong action verb (Led, Managed, Developed, Achieved, Implemented, Created, Optimized)
+2. Include metrics/numbers when possible (estimate reasonable figures if none provided)
+3. Keep bullets concise: 1-2 lines each
+4. Use industry-standard terminology for ATS compatibility
+5. Preserve truthfulness - enhance presentation, don't invent duties
+6. Match the input language
 
-Return a JSON array of suggested skills, max 5 suggestions. Only suggest skills that are reasonably implied by the experience described.`;
+Output Format: Return ONLY the enhanced bullet points, one per line starting with •
 
-const TRANSLATION_PROMPT = `You are a professional translator. Translate the following resume content while maintaining professional tone and ATS-friendly formatting. Keep proper nouns, company names, and technical terms in their original form when appropriate.`;
+Example Input: "helped customers and did sales stuff"
+Example Output: • Delivered exceptional customer service to 50+ daily patrons, driving repeat business
+• Generated $X in monthly sales through consultative selling techniques`;
+
+const SKILL_SUGGESTION_PROMPT = `Role: Career advisor analyzing work experience to identify implicit skills.
+
+Task: Suggest 3-5 relevant skills the candidate likely has based on their experience but didn't list.
+
+Rules:
+1. Only suggest skills clearly implied by the work described
+2. Avoid duplicating their existing skills
+3. Prioritize in-demand, transferable skills
+4. Be specific (not "communication" but "client communication" or "technical documentation")
+
+Output Format: Return a JSON array of strings, nothing else.
+Example: ["inventory management", "POS systems", "team coordination"]`;
+
+const TRANSLATION_PROMPT = `Role: Professional translator for resume/CV content.
+
+Task: Translate while maintaining professional tone and ATS compatibility.
+
+Rules:
+1. Keep proper nouns, company names, and technical terms in original form
+2. Use formal/professional register appropriate for resumes
+3. Maintain bullet point formatting
+4. Preserve any metrics/numbers exactly
+
+Output: Return ONLY the translated text, no explanations.`;
+
+const PROFESSIONAL_SUMMARY_PROMPT = `Role: Resume writer creating professional summaries.
+
+Task: Write a 2-3 sentence professional summary for a resume.
+
+Rules:
+1. Do NOT include the person's name
+2. Highlight years of experience (estimate from roles if needed)
+3. Mention 2-3 key skills or strengths
+4. Include target role/industry focus if clear
+5. Use confident, active language
+6. Match the specified language
+
+Output: Return ONLY the summary paragraph, no headers or labels.
+
+Example: "Results-driven retail professional with 3+ years of experience in customer service and sales. Proven track record of exceeding sales targets and training new team members. Seeking to leverage strong interpersonal skills in a supervisory role."`;
+
+// ============================================================================
+// API FUNCTIONS
+// ============================================================================
 
 export const enhanceJobDescription = async (
   description: string,
@@ -43,17 +96,22 @@ export const enhanceJobDescription = async (
   language: string = 'en'
 ): Promise<EnhancementResult> => {
   try {
+    // Structured user prompt for consistent parsing
+    const userPrompt = `Position: ${jobTitle}
+Language: ${language}
+Original:
+${description}
+
+Enhanced:`;
+
     const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: RESUME_ENHANCEMENT_PROMPT },
-        {
-          role: 'user',
-          content: `Job Title: ${jobTitle}\n\nOriginal Description:\n${description}\n\nLanguage: ${language}`,
-        },
+        { role: 'user', content: userPrompt },
       ],
-      temperature: 0.7,
-      max_tokens: 500,
+      temperature: 0.6, // Slightly lower for more consistent output
+      max_tokens: 400, // Reduced - bullet points should be concise
     });
 
     const enhanced = response.choices[0]?.message?.content?.trim() || description;
@@ -70,29 +128,45 @@ export const suggestSkills = async (
   existingSkills: string[]
 ): Promise<string[]> => {
   try {
+    // Compact experience format
     const experienceSummary = workExperience
-      .map((exp) => `${exp.jobTitle}: ${exp.responsibilities}`)
-      .join('\n\n');
+      .map((exp) => `• ${exp.jobTitle}: ${exp.responsibilities.slice(0, 200)}`)
+      .join('\n');
+
+    const userPrompt = `Experience:
+${experienceSummary}
+
+Already listed: ${existingSkills.slice(0, 10).join(', ') || 'none'}
+
+JSON:`;
 
     const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: SKILL_SUGGESTION_PROMPT },
-        {
-          role: 'user',
-          content: `Work Experience:\n${experienceSummary}\n\nExisting Skills: ${existingSkills.join(', ')}\n\nSuggest additional skills:`,
-        },
+        { role: 'user', content: userPrompt },
       ],
-      temperature: 0.5,
-      max_tokens: 200,
+      temperature: 0.4, // Lower for more focused suggestions
+      max_tokens: 100, // JSON array is small
     });
 
     const content = response.choices[0]?.message?.content?.trim() || '[]';
 
     try {
-      const suggestions = JSON.parse(content);
-      return Array.isArray(suggestions) ? suggestions : [];
+      // Handle potential markdown code blocks
+      const jsonContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      const suggestions = JSON.parse(jsonContent);
+      return Array.isArray(suggestions) ? suggestions.slice(0, 5) : [];
     } catch {
+      // Try to extract array from malformed response
+      const arrayMatch = content.match(/\[.*\]/s);
+      if (arrayMatch) {
+        try {
+          return JSON.parse(arrayMatch[0]).slice(0, 5);
+        } catch {
+          return [];
+        }
+      }
       return [];
     }
   } catch (error) {
@@ -106,17 +180,20 @@ export const translateContent = async (
   targetLanguage: string
 ): Promise<string> => {
   try {
+    const userPrompt = `Target: ${targetLanguage}
+Text:
+${content}
+
+Translation:`;
+
     const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: TRANSLATION_PROMPT },
-        {
-          role: 'user',
-          content: `Translate to ${targetLanguage}:\n\n${content}`,
-        },
+        { role: 'user', content: userPrompt },
       ],
-      temperature: 0.3,
-      max_tokens: 1000,
+      temperature: 0.2, // Very low for accurate translation
+      max_tokens: Math.min(content.length * 2, 1500), // Scale with input
     });
 
     return response.choices[0]?.message?.content?.trim() || content;
@@ -133,25 +210,32 @@ export const generateProfessionalSummary = async (
   language: string = 'en'
 ): Promise<string> => {
   try {
-    const experienceSummary = workExperience
+    // Extract job titles for role focus
+    const roles = workExperience
       .slice(0, 3)
       .map((exp) => exp.jobTitle)
       .join(', ');
 
+    // Calculate approximate years of experience
+    const yearsExp = workExperience.length > 0
+      ? `${Math.max(1, workExperience.length)}+`
+      : '';
+
+    const userPrompt = `Roles: ${roles}
+${yearsExp ? `Years: ${yearsExp}` : ''}
+Skills: ${skills.slice(0, 5).join(', ') || 'various'}
+Language: ${language}
+
+Summary:`;
+
     const response = await getOpenAIClient().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        {
-          role: 'system',
-          content: `You are a professional resume writer. Create a brief, impactful professional summary (2-3 sentences) for a resume. Use the same language as specified. Do not include the person's name in the summary.`,
-        },
-        {
-          role: 'user',
-          content: `Create a professional summary for someone with experience as: ${experienceSummary}\n\nKey skills: ${skills.slice(0, 5).join(', ')}\n\nLanguage: ${language}`,
-        },
+        { role: 'system', content: PROFESSIONAL_SUMMARY_PROMPT },
+        { role: 'user', content: userPrompt },
       ],
-      temperature: 0.7,
-      max_tokens: 150,
+      temperature: 0.65,
+      max_tokens: 120, // 2-3 sentences don't need more
     });
 
     return response.choices[0]?.message?.content?.trim() || '';
