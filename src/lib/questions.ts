@@ -483,6 +483,72 @@ export const ADD_MORE_SECTION_MAP: Record<string, { firstQuestionId: string; sec
   'references_add_more': { firstQuestionId: 'reference_name', sectionKey: 'references' },
 };
 
+// Dynamic question text for multi-entry sections (subsequent entries)
+// Maps question IDs to alternative text for entries after the first
+export const SUBSEQUENT_ENTRY_QUESTIONS: Record<string, string> = {
+  // Work Experience - subsequent jobs
+  'work_company_1': "What company or organization was this job at?",
+  'work_title_1': "What was your job title there?",
+  'work_location_1': "Where was this job located? (City, State or Country)",
+  'work_start_1': "When did you start this job? (Month and year)",
+  'work_current_1': "Do you still work there?",
+  'work_end_1': "When did you leave this job? (Month and year)",
+  'work_responsibilities_1': "Describe **2-3 key responsibilities** at this job. Try to include:\n\n• What you did (your main tasks)\n• How you did it (tools, methods, or skills used)\n• Results achieved (numbers, improvements, or outcomes if possible)\n\nDon't worry about making it sound perfect - I'll help polish it!",
+
+  // Education - subsequent schools
+  'education_school': "What other school did you attend?",
+  'education_degree': "What degree or diploma did you receive (or are working toward) there?",
+  'education_field': "What was your field of study or major? (You can skip this if it doesn't apply)",
+  'education_current': "Are you currently studying there?",
+  'education_start': "What year did you start there?",
+  'education_end': "What year did you graduate (or expect to graduate)?",
+
+  // Volunteering - subsequent experiences
+  'volunteering_org': "What other organization did you volunteer with?",
+  'volunteering_role': "What was your role or what did you do there?",
+  'volunteering_dates': "When did you volunteer there? (Start date - end date, or just the year)",
+  'volunteering_responsibilities': "Describe **2-3 things you did** as a volunteer. Include:\n\n• Your main tasks and activities\n• Any impact or results (people helped, events organized, etc.)\n• Skills you used or developed",
+
+  // References - subsequent references
+  'reference_name': "What is this reference's name?",
+  'reference_title': "What is their job title?",
+  'reference_company': "What company do they work at?",
+  'reference_contact': "What is their phone number or email?",
+  'reference_relationship': "What is your relationship to this person?",
+};
+
+// Get the appropriate question text based on entry index
+export const getQuestionTextForEntry = (
+  question: Question,
+  entryIndex: number
+): string => {
+  // For the first entry (index 0), use original question text
+  if (entryIndex === 0) {
+    return question.question;
+  }
+
+  // For subsequent entries, use alternative text if available
+  const alternativeText = SUBSEQUENT_ENTRY_QUESTIONS[question.id];
+  return alternativeText || question.question;
+};
+
+// Get the section key for a question ID
+export const getSectionKeyForQuestion = (questionId: string): string | null => {
+  const sectionPrefixes: Record<string, string> = {
+    'work_': 'work',
+    'education_': 'education',
+    'volunteering_': 'volunteering',
+    'reference_': 'references',
+  };
+
+  for (const [prefix, sectionKey] of Object.entries(sectionPrefixes)) {
+    if (questionId.startsWith(prefix)) {
+      return sectionKey;
+    }
+  }
+  return null;
+};
+
 // Get the index of a question by its ID
 export const getQuestionIndexById = (questionId: string): number => {
   return questions.findIndex(q => q.id === questionId);
