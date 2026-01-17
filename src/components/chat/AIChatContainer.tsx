@@ -79,6 +79,7 @@ export const AIChatContainer: React.FC<AIChatContainerProps> = ({
   const [isRetrying, setIsRetrying] = useState(false);
   const [consecutiveErrors, setConsecutiveErrors] = useState(0);
   const [showFallbackOption, setShowFallbackOption] = useState(false);
+  const [inReviewMode, setInReviewMode] = useState(false);
 
   // Get current follow-up count
   const followUpCount = store.followUpCounts[currentSection] || 0;
@@ -149,6 +150,15 @@ export const AIChatContainer: React.FC<AIChatContainerProps> = ({
 
       // Handle the AI response (this also adds the assistant message to the store)
       handleAIResponse(response);
+
+      // Detect review mode - when AI says "let me review" or similar
+      if (response.assistantMessage) {
+        const lowerMessage = response.assistantMessage.toLowerCase();
+        if ((lowerMessage.includes('review') && lowerMessage.includes('have so far')) ||
+            (lowerMessage.includes('review') && lowerMessage.includes('what we'))) {
+          setInReviewMode(true);
+        }
+      }
 
       // Handle special content (email guide)
       if (response.specialContent) {
@@ -444,6 +454,32 @@ export const AIChatContainer: React.FC<AIChatContainerProps> = ({
           maxFollowUps={maxFollowUps}
           lastAIMessage={messages.filter(m => m.role === 'assistant').pop()?.content || ''}
         />
+      )}
+
+      {/* Review mode - Auto-preview and Generate Resume button */}
+      {inReviewMode && !isComplete && (
+        <div className="border-t border-[#27272a] bg-[#111111]">
+          {/* Automatic preview during review */}
+          <div className="p-4 pb-2">
+            <p className="text-sm text-[#a1a1aa] mb-3">Here's a preview of your resume:</p>
+            <InlinePreviewCard
+              resumeData={resumeData}
+              onViewFull={() => navigate('/preview/new', { state: { resumeData } })}
+            />
+          </div>
+          {/* Generate button */}
+          <div className="p-4 pt-2">
+            <Button
+              variant="primary"
+              className="w-full"
+              onClick={() => handleSubmit('generate my resume')}
+              disabled={isTyping}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Finalize Resume
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Complete state */}

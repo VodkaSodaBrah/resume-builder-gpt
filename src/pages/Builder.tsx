@@ -46,7 +46,7 @@ const TEST_RESUME_DATA: Partial<ResumeData> = {
     {
       id: 'test-edu-1',
       schoolName: 'University of California, Berkeley',
-      degree: 'Bachelor of Science',
+      degree: 'BS',
       fieldOfStudy: 'Computer Science',
       startYear: '2015',
       endYear: '2019',
@@ -73,7 +73,19 @@ export const Builder: React.FC = () => {
 
   // Determine mode from URL param (default to AI mode)
   const modeParam = searchParams.get('mode');
+  const editSection = searchParams.get('editSection');
   const [useAIMode, setUseAIMode] = useState(modeParam !== 'classic');
+
+  // Section-to-question index mapping for edit mode
+  // These indices correspond to the first question in each section
+  const SECTION_QUESTION_INDICES: Record<string, number> = {
+    personal: 2,      // personal_name
+    work: 7,          // work_has_experience
+    education: 17,    // education_school
+    volunteering: 23, // volunteering_has
+    skills: 29,       // skills_has_technical
+    references: 37,   // references_has
+  };
 
   // Get state from appropriate store based on mode
   const linearStore = useConversationStore();
@@ -164,6 +176,34 @@ export const Builder: React.FC = () => {
       loadResume();
     }
   }, [resumeId, isLoaded, user]);
+
+  // Handle editSection parameter - jump to specific section
+  useEffect(() => {
+    if (editSection && SECTION_QUESTION_INDICES[editSection] !== undefined) {
+      const questionIndex = SECTION_QUESTION_INDICES[editSection];
+      console.log(`[Edit Mode] Navigating to section: ${editSection}, question index: ${questionIndex}`);
+
+      // Use the appropriate store based on mode
+      if (useAIMode) {
+        // For AI mode, use setCurrentSection to navigate to the section
+        const aiActions = useAIConversationStore.getState().actions;
+        aiActions.setCurrentSection(editSection as import('@/types').QuestionCategory);
+        aiActions.addMessage({
+          role: 'assistant',
+          content: `I see you want to edit your ${editSection === 'personal' ? 'personal information' : editSection}. What would you like to change?`,
+        });
+      } else {
+        // For linear mode, use goToQuestion
+        const linearActions = useConversationStore.getState();
+        linearActions.goToQuestion(questionIndex);
+      }
+
+      // Clear the editSection param to prevent re-triggering
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('editSection');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [editSection, useAIMode, searchParams, setSearchParams]);
 
   const loadResume = async () => {
     if (!user) return;

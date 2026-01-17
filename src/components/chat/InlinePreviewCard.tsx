@@ -40,6 +40,7 @@ export const InlinePreviewCard: React.FC<InlinePreviewCardProps> = ({
   const skills = (resumeData.skills || {}) as {
     technicalSkills?: string[];
     softSkills?: string[];
+    certifications?: string[];
   };
 
   // Get job titles for display
@@ -48,10 +49,11 @@ export const InlinePreviewCard: React.FC<InlinePreviewCardProps> = ({
     .map((job) => job.jobTitle as string)
     .slice(0, 3);
 
-  // Get skills summary
+  // Get skills summary (including certifications)
   const allSkills = [
     ...(Array.isArray(skills.technicalSkills) ? skills.technicalSkills : []),
     ...(Array.isArray(skills.softSkills) ? skills.softSkills : []),
+    ...(Array.isArray(skills.certifications) ? skills.certifications : []),
   ].slice(0, 5);
 
   // Parse skills if they're strings
@@ -125,7 +127,7 @@ export const InlinePreviewCard: React.FC<InlinePreviewCardProps> = ({
                   {skill}
                 </span>
               ))}
-              {parsedSkills.length < (skills.technicalSkills?.length || 0) + (skills.softSkills?.length || 0) && (
+              {parsedSkills.length < (skills.technicalSkills?.length || 0) + (skills.softSkills?.length || 0) + (skills.certifications?.length || 0) && (
                 <span className="text-[#71717a] text-xs px-1">
                   +more
                 </span>

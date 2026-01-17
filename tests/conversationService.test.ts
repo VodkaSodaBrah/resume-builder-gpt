@@ -69,11 +69,13 @@ describe('detectEscapePhrase', () => {
   });
 
   describe('negative section indicators', () => {
-    it('detects standalone "no"', () => {
-      expect(detectEscapePhrase('no')).toBe(true);
-      expect(detectEscapePhrase('No.')).toBe(true);
-      expect(detectEscapePhrase('nope')).toBe(true);
-      expect(detectEscapePhrase('nah')).toBe(true);
+    it('standalone "no" is NOT an escape phrase (it\'s a valid answer to yes/no questions)', () => {
+      // Without section context, "no" variants are not escape phrases
+      // This prevents misinterpreting "Do you have work experience?" -> "no" as wanting to skip
+      expect(detectEscapePhrase('no')).toBe(false);
+      expect(detectEscapePhrase('No.')).toBe(false);
+      expect(detectEscapePhrase('nope')).toBe(false);
+      expect(detectEscapePhrase('nah')).toBe(false);
     });
 
     it('detects "none"', () => {
@@ -458,11 +460,25 @@ describe('calculateCompletionPercentage', () => {
 });
 
 describe('getWelcomeMessage', () => {
-  it('returns a welcome message', () => {
+  it('returns a language selection message', () => {
     const message = getWelcomeMessage();
-    expect(message).toContain('Hi');
-    expect(message).toContain('resume');
-    expect(message).toContain('name');
+    expect(message).toContain('language');
+    expect(message).toContain('English');
+    expect(message).toContain('Espanol');
+  });
+
+  it('includes all 10 supported languages', () => {
+    const message = getWelcomeMessage();
+    expect(message).toContain('English');
+    expect(message).toContain('Espanol');
+    expect(message).toContain('Francais');
+    expect(message).toContain('Deutsch');
+    expect(message).toContain('Portugues');
+    expect(message).toContain('中文');
+    expect(message).toContain('日本語');
+    expect(message).toContain('한국어');
+    expect(message).toContain('العربية');
+    expect(message).toContain('हिन्दी');
   });
 
   it('includes markdown formatting', () => {

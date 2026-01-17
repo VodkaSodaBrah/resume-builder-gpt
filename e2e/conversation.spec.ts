@@ -12,29 +12,36 @@ test.describe.configure({ mode: 'serial' });
 
 /**
  * Helper to sign in as dev user in development mode
+ * Uses localStorage directly for reliable auth bypass
  */
 async function signInAndGoToBuilder(page: import('@playwright/test').Page) {
   // Navigate to the home page first
   await page.goto('/');
 
-  // Click the "Sign In as Dev User" button if present (development mode)
-  const devSignInButton = page.getByRole('button', { name: /Sign In as Dev User/i });
-
-  try {
-    await devSignInButton.waitFor({ state: 'visible', timeout: 5000 });
-    await devSignInButton.click();
-
-    // Wait for the click to register and any state to update
-    await page.waitForTimeout(2000);
-  } catch {
-    // Button not found, might already be logged in
-  }
+  // Set localStorage directly for dev auth bypass
+  await page.evaluate(() => {
+    localStorage.setItem('dev_auth_signed_in', 'true');
+  });
 
   // Navigate to builder
   await page.goto('/builder');
 
-  // Wait for the page to fully load
-  await page.waitForTimeout(3000);
+  // Wait for the page to fully load and verify auth worked
+  try {
+    await page.waitForSelector('textarea', { timeout: 15000 });
+  } catch {
+    // If textarea not found, check if we need to re-auth
+    const url = page.url();
+    if (url.includes('sign-in') || !url.includes('builder')) {
+      await page.evaluate(() => {
+        localStorage.setItem('dev_auth_signed_in', 'true');
+      });
+      await page.goto('/builder');
+      await page.waitForSelector('textarea', { timeout: 10000 });
+    }
+  }
+
+  await page.waitForTimeout(1000);
 }
 
 test.describe('Core Conversation Flow', () => {

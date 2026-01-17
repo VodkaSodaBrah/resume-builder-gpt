@@ -18,7 +18,7 @@ export interface EnhancementResult {
 }
 
 // ============================================================================
-// OPTIMIZED SYSTEM PROMPTS FOR GPT-4o-mini
+// OPTIMIZED SYSTEM PROMPTS FOR GPT-5-mini
 // ============================================================================
 // Best practices applied:
 // 1. Concise, structured instructions (token-efficient)
@@ -105,13 +105,13 @@ ${description}
 Enhanced:`;
 
     const response = await getOpenAIClient().chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini-2025-04-14',
       messages: [
         { role: 'system', content: RESUME_ENHANCEMENT_PROMPT },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.6, // Slightly lower for more consistent output
-      max_tokens: 400, // Reduced - bullet points should be concise
+      // Note: gpt-4.1-mini only supports temperature=1 (default)
+      max_completion_tokens: 400, // Reduced - bullet points should be concise
     });
 
     const enhanced = response.choices[0]?.message?.content?.trim() || description;
@@ -141,13 +141,13 @@ Already listed: ${existingSkills.slice(0, 10).join(', ') || 'none'}
 JSON:`;
 
     const response = await getOpenAIClient().chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini-2025-04-14',
       messages: [
         { role: 'system', content: SKILL_SUGGESTION_PROMPT },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.4, // Lower for more focused suggestions
-      max_tokens: 100, // JSON array is small
+      // Note: gpt-4.1-mini only supports temperature=1 (default)
+      max_completion_tokens: 100, // JSON array is small
     });
 
     const content = response.choices[0]?.message?.content?.trim() || '[]';
@@ -187,13 +187,13 @@ ${content}
 Translation:`;
 
     const response = await getOpenAIClient().chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini-2025-04-14',
       messages: [
         { role: 'system', content: TRANSLATION_PROMPT },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.2, // Very low for accurate translation
-      max_tokens: Math.min(content.length * 2, 1500), // Scale with input
+      // Note: gpt-4.1-mini only supports temperature=1 (default)
+      max_completion_tokens: Math.min(content.length * 2, 1500), // Scale with input
     });
 
     return response.choices[0]?.message?.content?.trim() || content;
@@ -229,13 +229,13 @@ Language: ${language}
 Summary:`;
 
     const response = await getOpenAIClient().chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini-2025-04-14',
       messages: [
         { role: 'system', content: PROFESSIONAL_SUMMARY_PROMPT },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.65,
-      max_tokens: 120, // 2-3 sentences don't need more
+      // Note: gpt-4.1-mini only supports temperature=1 (default)
+      max_completion_tokens: 120, // 2-3 sentences don't need more
     });
 
     return response.choices[0]?.message?.content?.trim() || '';
@@ -281,18 +281,18 @@ export interface ConversationCompletionResult {
 export const getConversationCompletion = async (
   systemPrompt: string,
   messages: ConversationMessage[],
-  temperature: number = 0.7,
+  _temperature: number = 0.7, // Ignored: gpt-4.1-mini only supports temperature=1
   maxTokens: number = 1000
 ): Promise<ConversationCompletionResult> => {
   try {
     const response = await getOpenAIClient().chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini-2025-04-14',
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages,
       ],
-      temperature,
-      max_tokens: maxTokens,
+      // Note: gpt-4.1-mini only supports temperature=1 (default)
+      max_completion_tokens: maxTokens,
     });
 
     const content = response.choices[0]?.message?.content?.trim() || '';
@@ -334,18 +334,18 @@ export const getConversationCompletionStream = async (
   systemPrompt: string,
   messages: ConversationMessage[],
   onChunk: (chunk: string) => void,
-  temperature: number = 0.7,
+  _temperature: number = 0.7, // Ignored: gpt-4.1-mini only supports temperature=1
   maxTokens: number = 1000
 ): Promise<{ fullResponse: string; extractedData: Record<string, unknown> | null }> => {
   try {
     const stream = await getOpenAIClient().chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini-2025-04-14',
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages,
       ],
-      temperature,
-      max_tokens: maxTokens,
+      // Note: gpt-4.1-mini only supports temperature=1 (default)
+      max_completion_tokens: maxTokens,
       stream: true,
     });
 

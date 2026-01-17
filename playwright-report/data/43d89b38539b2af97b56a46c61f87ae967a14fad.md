@@ -1,0 +1,58 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - button "Back to Dashboard" [ref=e7]:
+        - img [ref=e8]
+        - text: Back to Dashboard
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - generic [ref=e12]: <
+          - generic [ref=e13]: Resume Builder
+          - generic [ref=e14]: />
+        - 'button "DEV: Fill Test Data" [ref=e15]'
+  - main [ref=e16]:
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e21]:
+          - img [ref=e23]
+          - generic [ref=e26]:
+            - heading "Resume Assistant" [level=2] [ref=e27]
+            - paragraph [ref=e28]: language
+        - generic [ref=e31]: 10% complete
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - img [ref=e35]
+          - generic [ref=e38]:
+            - paragraph [ref=e39]: What language would you like to use? English | Espanol | Francais | Deutsch | Portugues 中文 | 日本語 | 한국어 | العربية | हिन्दी Just type your preferred language!
+            - paragraph [ref=e40]: 05:38 PM
+        - generic [ref=e41]:
+          - img [ref=e43]
+          - generic [ref=e46]:
+            - paragraph [ref=e47]: John Smith
+            - paragraph [ref=e48]: 05:38 PM
+        - generic [ref=e49]:
+          - img [ref=e51]
+          - generic [ref=e54]:
+            - paragraph [ref=e55]: It looks like you shared your full name, John Smith. Before we proceed, could you please tell me which language you'd like to use for your resume? For example, English, Español, Français, etc.
+            - paragraph [ref=e56]: 05:38 PM
+      - generic [ref=e57]:
+        - generic [ref=e58]:
+          - button "English" [ref=e59]
+          - button "Espanol" [ref=e60]
+          - button "Francais" [ref=e61]
+          - button "Deutsch" [ref=e62]
+          - button "Portugues" [ref=e63]
+          - button "中文" [ref=e64]
+          - button "日本語" [ref=e65]
+          - button "한국어" [ref=e66]
+          - button "العربية" [ref=e67]
+          - button "हिन्दी" [ref=e68]
+        - generic [ref=e70]:
+          - textbox "Type your message..." [active] [ref=e72]
+          - button [disabled] [ref=e73]:
+            - img [ref=e74]
+      - 'button "AI: ON" [ref=e78]'
+```

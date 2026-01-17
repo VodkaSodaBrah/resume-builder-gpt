@@ -94,7 +94,7 @@ export const getSectionIntroMessage = (category: QuestionCategory): string | nul
     'education': "Great progress! Now let's add your education background.",
     'volunteering': "Volunteer work can really make your resume stand out. Let's see if you have any to add!",
     'skills': "Almost there! Let's highlight your skills and qualifications.",
-    'references': "Finally, let's set up your references section.",
+    'references': "We're almost done! Would you like to add references to your resume?",
     'review': "Excellent work! You've completed all the sections. Let's review and finalize your resume!",
   };
   return intros[category] || null;

@@ -3,6 +3,8 @@
  * Handles system prompts, field extraction, and conversation flow
  */
 
+import { formatPhoneNumber, formatCityState } from './formatters';
+
 // Define QuestionCategory locally to avoid cross-project imports
 export type QuestionCategory =
   | 'language'
@@ -335,7 +337,7 @@ After EACH sub-category, move to the NEXT one. Only go to references after ALL 4
 
 ### STEP 1: Technical Skills (FIRST)
 Your FIRST message in skills MUST be EXACTLY:
-"**Do you have any technical skills or software you'd like to highlight? (Yes or No)**"
+"**Do you have any technical skills (software, tools, technologies) you'd like to highlight? (Yes or No)**"
 
 After user answers:
 - If YES: Ask "What technical skills do you have?" then collect answer
@@ -785,6 +787,25 @@ export function buildSystemPrompt(
     prompt += `\n\n## Additional Context:\n${additionalContext}`;
   }
 
+  // CRITICAL: Add strong reminder at the END of the prompt (LLMs pay more attention to beginning and end)
+  prompt += `\n\n## CRITICAL REMINDER - REQUIRED OUTPUT FORMAT:
+You MUST end EVERY response with an <extracted_data> tag containing JSON. This is MANDATORY.
+Example format (ALWAYS include this, even if fields array is empty):
+
+Your conversational response here...
+
+<extracted_data>
+{
+  "fields": [{"path": "personalInfo.fullName", "value": "extracted value", "confidence": 0.95}],
+  "suggestedSection": null,
+  "followUpNeeded": false,
+  "specialContent": null,
+  "isComplete": false
+}
+</extracted_data>
+
+DO NOT skip the <extracted_data> tag. It is REQUIRED for every response.`;
+
   return prompt;
 }
 
@@ -839,6 +860,544 @@ export function parseExtractedData(aiResponse: string): {
     console.error('Failed to parse extracted data:', error);
     return null;
   }
+}
+
+// ============================================================================
+// Gate Question Detection Helpers
+// ============================================================================
+
+/**
+ * Detect if AI asked a yes/no gate question
+ * These are questions that should only receive yes/no, not content
+ */
+export function isGateQuestion(aiMessage: string): boolean {
+  const lower = aiMessage.toLowerCase();
+
+  // Explicit yes/no patterns
+  if (lower.includes('(yes or no)') || lower.includes('yes or no?')) {
+    return true;
+  }
+
+  // Common gate question patterns
+  const gatePatterns = [
+    /do you have any .+\?$/i,
+    /would you like to (add|include) .+\?$/i,
+    /is this your current (job|position)\?/i,
+    /are you still (working|studying)/i,
+    /do you speak any languages/i,
+  ];
+
+  return gatePatterns.some(pattern => pattern.test(lower));
+}
+
+/**
+ * Detect simple yes/no response that should NOT be stored as content
+ * Returns 'yes', 'no', or null if neither
+ */
+export function isYesNoResponse(userMessage: string): 'yes' | 'no' | null {
+  const trimmed = userMessage.trim().toLowerCase();
+
+  // Yes patterns
+  if (/^(yes|yeah|yep|yup|sure|definitely|absolutely|i do|i have|y|ok|okay)\.?$/i.test(trimmed)) {
+    return 'yes';
+  }
+
+  // No patterns
+  if (/^(no|nope|nah|none|nothing|skip|n\/a|n|not really)\.?$/i.test(trimmed)) {
+    return 'no';
+  }
+
+  return null;
+}
+
+/**
+ * Check if user response indicates current job/still working
+ */
+function isCurrentJobResponse(userMessage: string): boolean {
+  const lower = userMessage.toLowerCase();
+  return (
+    lower.includes('current') ||
+    lower.includes('present') ||
+    lower.includes('still') ||
+    lower.includes('yes') ||
+    lower.includes('i am') ||
+    lower.includes("i'm still")
+  );
+}
+
+/**
+ * Fallback extraction when AI doesn't include extracted_data tag
+ * Extracts data programmatically based on current section and user message
+ *
+ * IMPORTANT: This function now distinguishes between:
+ * 1. Gate questions (yes/no) - Only extract flags, not content
+ * 2. Detail questions - Extract actual content
+ */
+export function fallbackExtractData(
+  userMessage: string,
+  currentSection: QuestionCategory,
+  lastAIMessage: string
+): {
+  fields: Array<{ path: string; value: unknown; confidence: number }>;
+  suggestedSection: QuestionCategory | null;
+} {
+  const fields: Array<{ path: string; value: unknown; confidence: number }> = [];
+  let suggestedSection: QuestionCategory | null = null;
+
+  const lowerAI = lastAIMessage.toLowerCase();
+  const lowerUser = userMessage.toLowerCase().trim();
+  const trimmedMessage = userMessage.trim();
+
+  // Helper to split comma/semicolon separated lists
+  const splitList = (text: string): string[] => {
+    return text.split(/[,;]/).map(s => s.trim()).filter(s => s.length > 0);
+  };
+
+  // CRITICAL: Detect if this is a yes/no response
+  const yesNoAnswer = isYesNoResponse(trimmedMessage);
+  const isGate = isGateQuestion(lastAIMessage);
+
+  // Legacy helpers for backward compatibility
+  const isYes = yesNoAnswer === 'yes';
+  const isNo = yesNoAnswer === 'no';
+
+  // ============================================================================
+  // LANGUAGE SECTION
+  // ============================================================================
+  if (currentSection === 'language') {
+    const languageMap: Record<string, string> = {
+      'english': 'en', 'espanol': 'es', 'spanish': 'es', 'francais': 'fr', 'french': 'fr',
+      'deutsch': 'de', 'german': 'de', 'portugues': 'pt', 'portuguese': 'pt',
+      '中文': 'zh', 'chinese': 'zh', '日本語': 'ja', 'japanese': 'ja',
+      '한국어': 'ko', 'korean': 'ko', 'العربية': 'ar', 'arabic': 'ar',
+      'हिन्दी': 'hi', 'hindi': 'hi'
+    };
+    const langKey = trimmedMessage.toLowerCase();
+    if (languageMap[langKey]) {
+      fields.push({ path: 'language', value: languageMap[langKey], confidence: 0.95 });
+      suggestedSection = 'intro';
+    }
+  }
+
+  // ============================================================================
+  // PERSONAL INFO SECTION
+  // ============================================================================
+  if (currentSection === 'language' || currentSection === 'intro' || currentSection === 'personal') {
+    // Name extraction (if AI asked for name)
+    if (lowerAI.includes('full name') || lowerAI.includes('your name')) {
+      if (!trimmedMessage.includes('@') && !/^\d+$/.test(trimmedMessage) && trimmedMessage.length > 1) {
+        fields.push({ path: 'personalInfo.fullName', value: trimmedMessage, confidence: 0.9 });
+        suggestedSection = 'personal';
+      }
+    }
+
+    // Email extraction
+    if (lowerAI.includes('email')) {
+      const emailMatch = trimmedMessage.match(/[\w.-]+@[\w.-]+\.\w+/);
+      if (emailMatch) {
+        fields.push({ path: 'personalInfo.email', value: emailMatch[0], confidence: 0.95 });
+      }
+    }
+
+    // Phone extraction - apply formatting
+    if (lowerAI.includes('phone')) {
+      const phoneMatch = trimmedMessage.match(/[\d\s()+-]{7,}/);
+      if (phoneMatch) {
+        const formattedPhone = formatPhoneNumber(phoneMatch[0].trim());
+        fields.push({ path: 'personalInfo.phone', value: formattedPhone, confidence: 0.9 });
+      }
+    }
+
+    // Location extraction (city, state) - apply formatting
+    if (lowerAI.includes('city') || lowerAI.includes('location') || lowerAI.includes('live')) {
+      if (trimmedMessage.length > 2 && !trimmedMessage.includes('@')) {
+        const formattedCity = formatCityState(trimmedMessage);
+        fields.push({ path: 'personalInfo.city', value: formattedCity, confidence: 0.85 });
+      }
+    }
+  }
+
+  // ============================================================================
+  // WORK EXPERIENCE SECTION
+  // ============================================================================
+  if (currentSection === 'work') {
+    // CRITICAL: Check for gate questions first - don't extract yes/no as content
+
+    // Gate question - do you have work experience?
+    if ((lowerAI.includes('work experience') || lowerAI.includes('any jobs')) &&
+        (lowerAI.includes('yes or no') || isGate)) {
+      if (isYes) {
+        fields.push({ path: 'hasWorkExperience', value: true, confidence: 0.95 });
+      } else if (isNo) {
+        fields.push({ path: 'hasWorkExperience', value: false, confidence: 0.95 });
+        suggestedSection = 'education';
+      }
+      // Don't process further - this was a gate question
+      return { fields, suggestedSection };
+    }
+
+    // Current job question - special handling for yes/no
+    if (lowerAI.includes('still work') || lowerAI.includes('current job') ||
+        lowerAI.includes('is this your current') || lowerAI.includes('still there')) {
+      if (isYes || isCurrentJobResponse(trimmedMessage)) {
+        fields.push({ path: 'workExperience[0].isCurrentJob', value: true, confidence: 0.9 });
+      } else if (isNo) {
+        fields.push({ path: 'workExperience[0].isCurrentJob', value: false, confidence: 0.9 });
+      }
+      // Don't process further for this question
+      return { fields, suggestedSection };
+    }
+
+    // Add another job? - gate question
+    if (lowerAI.includes('another') && (lowerAI.includes('job') || lowerAI.includes('position') || lowerAI.includes('experience'))) {
+      if (isNo) {
+        suggestedSection = 'education';
+      }
+      // Yes means start collecting new entry - no fields to extract
+      return { fields, suggestedSection };
+    }
+
+    // DETAIL QUESTIONS - Only extract if NOT a yes/no response
+    if (yesNoAnswer !== null) {
+      // User gave yes/no but AI asked a detail question - don't store as content
+      return { fields, suggestedSection };
+    }
+
+    // Company name
+    if (lowerAI.includes('company') || lowerAI.includes('work for') || lowerAI.includes('employer')) {
+      fields.push({ path: 'workExperience[0].companyName', value: trimmedMessage, confidence: 0.85 });
+    }
+    // Job title
+    else if (lowerAI.includes('job title') || lowerAI.includes('position') || (lowerAI.includes('role') && !lowerAI.includes('volunteer'))) {
+      fields.push({ path: 'workExperience[0].jobTitle', value: trimmedMessage, confidence: 0.85 });
+    }
+    // Start date
+    else if (lowerAI.includes('start') || lowerAI.includes('begin') || lowerAI.includes('when did you join')) {
+      fields.push({ path: 'workExperience[0].startDate', value: trimmedMessage, confidence: 0.8 });
+    }
+    // End date (only if not current job question - handled above)
+    else if (lowerAI.includes('end') || lowerAI.includes('leave') || lowerAI.includes('when did you stop')) {
+      // Check if response indicates current job
+      if (isCurrentJobResponse(trimmedMessage)) {
+        fields.push({ path: 'workExperience[0].isCurrentJob', value: true, confidence: 0.9 });
+      } else {
+        fields.push({ path: 'workExperience[0].endDate', value: trimmedMessage, confidence: 0.8 });
+      }
+    }
+    // Job location
+    else if ((lowerAI.includes('location') || lowerAI.includes('where') || lowerAI.includes('city')) &&
+             (lowerAI.includes('job') || lowerAI.includes('work') || lowerAI.includes('position'))) {
+      fields.push({ path: 'workExperience[0].location', value: trimmedMessage, confidence: 0.8 });
+    }
+    // Responsibilities
+    else if (lowerAI.includes('responsibilit') || lowerAI.includes('duties') || lowerAI.includes('what did you do') || lowerAI.includes('main tasks')) {
+      fields.push({ path: 'workExperience[0].responsibilities', value: trimmedMessage, confidence: 0.85 });
+    }
+  }
+
+  // ============================================================================
+  // EDUCATION SECTION
+  // ============================================================================
+  if (currentSection === 'education') {
+    // CRITICAL: Check for gate questions first
+
+    // Gate question - do you have education?
+    if ((lowerAI.includes('education') || lowerAI.includes('school')) &&
+        (lowerAI.includes('yes or no') || isGate)) {
+      if (isYes) {
+        fields.push({ path: 'hasEducation', value: true, confidence: 0.95 });
+      } else if (isNo) {
+        fields.push({ path: 'hasEducation', value: false, confidence: 0.95 });
+        suggestedSection = 'volunteering';
+      }
+      return { fields, suggestedSection };
+    }
+
+    // Still studying question - gate question
+    if (lowerAI.includes('still studying') || lowerAI.includes('currently enrolled') ||
+        lowerAI.includes('are you still')) {
+      if (isYes) {
+        fields.push({ path: 'education[0].isCurrentlyStudying', value: true, confidence: 0.9 });
+      } else if (isNo) {
+        fields.push({ path: 'education[0].isCurrentlyStudying', value: false, confidence: 0.9 });
+      }
+      return { fields, suggestedSection };
+    }
+
+    // Add another education? - gate question
+    if (lowerAI.includes('another') && (lowerAI.includes('education') || lowerAI.includes('school') || lowerAI.includes('degree'))) {
+      if (isNo) {
+        suggestedSection = 'volunteering';
+      }
+      return { fields, suggestedSection };
+    }
+
+    // DETAIL QUESTIONS - Only extract if NOT a yes/no response
+    if (yesNoAnswer !== null) {
+      // User gave yes/no but AI asked a detail question - don't store as content
+      return { fields, suggestedSection };
+    }
+
+    // Degree - with smart field of study extraction
+    if (lowerAI.includes('degree') || lowerAI.includes('diploma') || lowerAI.includes('certificate') || lowerAI.includes('qualification')) {
+      const degreeWithFieldPattern = /^(.+?)\s+in\s+(.+)$/i;
+      const match = trimmedMessage.match(degreeWithFieldPattern);
+
+      if (match) {
+        const degreePart = match[1].trim();
+        const fieldPart = match[2].trim();
+        fields.push({ path: 'education[0].degree', value: degreePart, confidence: 0.9 });
+        fields.push({ path: 'education[0].fieldOfStudy', value: fieldPart, confidence: 0.9 });
+      } else {
+        fields.push({ path: 'education[0].degree', value: trimmedMessage, confidence: 0.85 });
+      }
+    }
+    // School name
+    else if (lowerAI.includes('school') || lowerAI.includes('university') || lowerAI.includes('college') || lowerAI.includes('institution')) {
+      fields.push({ path: 'education[0].schoolName', value: trimmedMessage, confidence: 0.85 });
+    }
+    // Field of study
+    else if (lowerAI.includes('study') || lowerAI.includes('major') || lowerAI.includes('field') || lowerAI.includes('subject')) {
+      fields.push({ path: 'education[0].fieldOfStudy', value: trimmedMessage, confidence: 0.85 });
+    }
+    // Graduation year
+    else if (lowerAI.includes('graduate') || lowerAI.includes('finish') || lowerAI.includes('complete') || lowerAI.includes('year')) {
+      // Check if response indicates still studying
+      if (lowerUser.includes('current') || lowerUser.includes('still') || lowerUser.includes('studying')) {
+        fields.push({ path: 'education[0].isCurrentlyStudying', value: true, confidence: 0.9 });
+      } else {
+        fields.push({ path: 'education[0].endYear', value: trimmedMessage, confidence: 0.8 });
+      }
+    }
+  }
+
+  // ============================================================================
+  // VOLUNTEERING SECTION
+  // ============================================================================
+  if (currentSection === 'volunteering') {
+    // CRITICAL: Check for gate questions first
+
+    // Gate question - do you have volunteer experience?
+    if ((lowerAI.includes('volunteer') || lowerAI.includes('volunteering')) &&
+        (lowerAI.includes('yes or no') || isGate)) {
+      if (isYes) {
+        fields.push({ path: 'hasVolunteering', value: true, confidence: 0.95 });
+      } else if (isNo) {
+        fields.push({ path: 'hasVolunteering', value: false, confidence: 0.95 });
+        suggestedSection = 'skills';
+      }
+      return { fields, suggestedSection };
+    }
+
+    // Add another? - gate question
+    if (lowerAI.includes('another') && lowerAI.includes('volunteer')) {
+      if (isNo) {
+        suggestedSection = 'skills';
+      }
+      return { fields, suggestedSection };
+    }
+
+    // DETAIL QUESTIONS - Only extract if NOT a yes/no response
+    if (yesNoAnswer !== null) {
+      // User gave yes/no but AI asked a detail question - don't store as content
+      return { fields, suggestedSection };
+    }
+
+    // Organization name
+    if (lowerAI.includes('organization') || lowerAI.includes('where did you volunteer')) {
+      fields.push({ path: 'volunteering[0].organizationName', value: trimmedMessage, confidence: 0.85 });
+    }
+    // Role
+    else if (lowerAI.includes('role') || lowerAI.includes('position') || lowerAI.includes('title')) {
+      fields.push({ path: 'volunteering[0].role', value: trimmedMessage, confidence: 0.85 });
+    }
+    // Responsibilities
+    else if (lowerAI.includes('responsibilit') || lowerAI.includes('what did you do') || lowerAI.includes('duties')) {
+      fields.push({ path: 'volunteering[0].responsibilities', value: trimmedMessage, confidence: 0.85 });
+    }
+    // Dates
+    else if (lowerAI.includes('when') || lowerAI.includes('date') || lowerAI.includes('time period')) {
+      fields.push({ path: 'volunteering[0].dates', value: trimmedMessage, confidence: 0.8 });
+    }
+  }
+
+  // ============================================================================
+  // SKILLS SECTION
+  // ============================================================================
+  if (currentSection === 'skills') {
+    // CRITICAL: The skills section has 4 sub-categories, each with gate + detail questions
+    // We must NOT extract yes/no responses as actual skill content
+
+    // ------------------------------------------------------------------
+    // TECHNICAL SKILLS
+    // ------------------------------------------------------------------
+    // Technical skills gate question
+    if (lowerAI.includes('technical skill') && (lowerAI.includes('yes or no') || isGate)) {
+      if (isYes) {
+        fields.push({ path: 'hasTechnicalSkills', value: true, confidence: 0.95 });
+      } else if (isNo) {
+        fields.push({ path: 'hasTechnicalSkills', value: false, confidence: 0.95 });
+      }
+      return { fields, suggestedSection };
+    }
+    // Technical skills detail (only if NOT a yes/no response)
+    if (lowerAI.includes('technical skill') || lowerAI.includes('what software') ||
+        lowerAI.includes('what tools') || lowerAI.includes('what technologies')) {
+      if (yesNoAnswer === null) {
+        const skills = splitList(trimmedMessage);
+        if (skills.length > 0) {
+          fields.push({ path: 'skills.technicalSkills', value: skills, confidence: 0.85 });
+        }
+      }
+      return { fields, suggestedSection };
+    }
+
+    // ------------------------------------------------------------------
+    // CERTIFICATIONS
+    // ------------------------------------------------------------------
+    // Certifications gate question
+    if (lowerAI.includes('certification') && (lowerAI.includes('yes or no') || isGate)) {
+      if (isYes) {
+        fields.push({ path: 'hasCertifications', value: true, confidence: 0.95 });
+      } else if (isNo) {
+        fields.push({ path: 'hasCertifications', value: false, confidence: 0.95 });
+      }
+      return { fields, suggestedSection };
+    }
+    // Certifications detail (only if NOT a yes/no response)
+    if (lowerAI.includes('certification') || lowerAI.includes('license')) {
+      if (yesNoAnswer === null) {
+        const certs = splitList(trimmedMessage);
+        if (certs.length > 0) {
+          fields.push({ path: 'skills.certifications', value: certs, confidence: 0.85 });
+        }
+      }
+      return { fields, suggestedSection };
+    }
+
+    // ------------------------------------------------------------------
+    // LANGUAGES
+    // ------------------------------------------------------------------
+    // Languages gate question
+    if (lowerAI.includes('language') && lowerAI.includes('speak') && (lowerAI.includes('yes or no') || isGate)) {
+      if (isYes) {
+        fields.push({ path: 'hasLanguages', value: true, confidence: 0.95 });
+      } else if (isNo) {
+        fields.push({ path: 'hasLanguages', value: false, confidence: 0.95 });
+      }
+      return { fields, suggestedSection };
+    }
+    // Languages detail (only if NOT a yes/no response)
+    if (lowerAI.includes('language') && (lowerAI.includes('speak') || lowerAI.includes('proficiency') || lowerAI.includes('what language'))) {
+      if (yesNoAnswer === null) {
+        const langItems = splitList(trimmedMessage);
+        const languages: Array<{language: string; proficiency: string}> = [];
+        for (const item of langItems) {
+          const proficiencyMatch = item.match(/(native|fluent|advanced|intermediate|basic|beginner)/i);
+          const proficiency = proficiencyMatch ? proficiencyMatch[1] : 'Fluent';
+          const language = item.replace(/(native|fluent|advanced|intermediate|basic|beginner|\(|\)|-)/gi, '').trim();
+          if (language) {
+            languages.push({ language, proficiency });
+          }
+        }
+        if (languages.length > 0) {
+          fields.push({ path: 'skills.languages', value: languages, confidence: 0.8 });
+        }
+      }
+      return { fields, suggestedSection };
+    }
+
+    // ------------------------------------------------------------------
+    // SOFT SKILLS / PERSONAL STRENGTHS
+    // ------------------------------------------------------------------
+    // Soft skills gate question
+    if ((lowerAI.includes('soft skill') || lowerAI.includes('personal strength')) && (lowerAI.includes('yes or no') || isGate)) {
+      if (isYes) {
+        fields.push({ path: 'hasSoftSkills', value: true, confidence: 0.95 });
+      } else if (isNo) {
+        fields.push({ path: 'hasSoftSkills', value: false, confidence: 0.95 });
+        suggestedSection = 'references';
+      }
+      return { fields, suggestedSection };
+    }
+    // Soft skills detail (only if NOT a yes/no response)
+    if (lowerAI.includes('soft skill') || lowerAI.includes('strength') || lowerAI.includes('personal qualities')) {
+      if (yesNoAnswer === null) {
+        const skills = splitList(trimmedMessage);
+        if (skills.length > 0) {
+          fields.push({ path: 'skills.softSkills', value: skills, confidence: 0.85 });
+        }
+      }
+      return { fields, suggestedSection };
+    }
+  }
+
+  // ============================================================================
+  // REFERENCES SECTION
+  // ============================================================================
+  if (currentSection === 'references') {
+    // CRITICAL: Check for gate questions first
+
+    // Gate question - do you want to add references?
+    if (lowerAI.includes('reference') && (lowerAI.includes('yes or no') || isGate)) {
+      if (isYes) {
+        fields.push({ path: 'hasReferences', value: true, confidence: 0.95 });
+      } else if (isNo || lowerUser.includes('upon request') || lowerUser.includes('available')) {
+        fields.push({ path: 'hasReferences', value: false, confidence: 0.95 });
+        if (lowerUser.includes('upon request') || lowerUser.includes('available')) {
+          fields.push({ path: 'referencesUponRequest', value: true, confidence: 0.9 });
+        }
+        suggestedSection = 'review';
+      }
+      return { fields, suggestedSection };
+    }
+
+    // Add another reference? - gate question
+    if (lowerAI.includes('another') && lowerAI.includes('reference')) {
+      if (isNo) {
+        suggestedSection = 'review';
+      }
+      return { fields, suggestedSection };
+    }
+
+    // DETAIL QUESTIONS - Only extract if NOT a yes/no response
+    if (yesNoAnswer !== null) {
+      return { fields, suggestedSection };
+    }
+
+    // Reference name
+    if (lowerAI.includes('name') && lowerAI.includes('reference')) {
+      fields.push({ path: 'references[0].name', value: trimmedMessage, confidence: 0.85 });
+    }
+    // Reference job title
+    else if (lowerAI.includes('title') || lowerAI.includes('position')) {
+      fields.push({ path: 'references[0].jobTitle', value: trimmedMessage, confidence: 0.85 });
+    }
+    // Reference company
+    else if (lowerAI.includes('company') || lowerAI.includes('work')) {
+      fields.push({ path: 'references[0].company', value: trimmedMessage, confidence: 0.85 });
+    }
+    // Reference phone
+    else if (lowerAI.includes('phone') || lowerAI.includes('number')) {
+      const phoneMatch = trimmedMessage.match(/[\d\s()+-]{7,}/);
+      if (phoneMatch) {
+        fields.push({ path: 'references[0].phone', value: phoneMatch[0].trim(), confidence: 0.9 });
+      }
+    }
+    // Reference email
+    else if (lowerAI.includes('email')) {
+      const emailMatch = trimmedMessage.match(/[\w.-]+@[\w.-]+\.\w+/);
+      if (emailMatch) {
+        fields.push({ path: 'references[0].email', value: emailMatch[0], confidence: 0.95 });
+      }
+    }
+    // Reference relationship
+    else if (lowerAI.includes('relationship') || lowerAI.includes('know')) {
+      fields.push({ path: 'references[0].relationship', value: trimmedMessage, confidence: 0.8 });
+    }
+  }
+
+  return { fields, suggestedSection };
 }
 
 /**
@@ -956,7 +1515,7 @@ export const REQUIRED_FIRST_MESSAGES: Partial<Record<QuestionCategory, string>> 
   work: "**Do you have any work experience you'd like to include? (Yes or No)**",
   education: "**Do you have any education you'd like to include? (Yes or No)**",
   volunteering: "**Do you have any volunteer experience you'd like to include? (Yes or No)**",
-  skills: "**Do you have any technical skills or software you'd like to highlight? (Yes or No)**",
+  skills: "**Do you have any technical skills (software, tools, technologies) you'd like to highlight? (Yes or No)**",
   references: "**Would you like to add professional references? (Yes or No)**",
 };
 
@@ -966,7 +1525,7 @@ export const REQUIRED_FIRST_MESSAGES: Partial<Record<QuestionCategory, string>> 
 export const SECTION_TRANSITION_MESSAGES: Partial<Record<QuestionCategory, string>> = {
   work: "That's totally fine! Let's move on to your education. **Do you have any education you'd like to include? (Yes or No)**",
   education: "That's perfectly fine! **Do you have any volunteer experience you'd like to include? (Yes or No)**",
-  volunteering: "That's perfectly fine! **Do you have any technical skills or software you'd like to highlight? (Yes or No)**",
+  volunteering: "That's perfectly fine! **Do you have any technical skills (software, tools, technologies) you'd like to highlight? (Yes or No)**",
   skills: "No problem! **Would you like to add professional references? (Yes or No)**",
   references: "That's fine! Let me review what we have so far.",
 };
@@ -1060,7 +1619,7 @@ export function detectUserSaidYesToSection(
 // Skills Sub-Category Tracking
 // ============================================================================
 
-export type SkillsSubCategory = 'technical' | 'certifications' | 'languages' | 'strengths';
+export type SkillsSubCategory = 'technical' | 'certifications' | 'languages' | 'softSkills';
 
 /**
  * Patterns to detect which skills sub-category question was asked
@@ -1069,22 +1628,32 @@ const SKILLS_SUB_CATEGORY_PATTERNS: Array<{ patterns: string[]; category: Skills
   { patterns: ['technical skills', 'software you\'d like to highlight'], category: 'technical' },
   { patterns: ['certifications or licenses', 'certifications'], category: 'certifications' },
   { patterns: ['languages you\'d like to include', 'speak any languages'], category: 'languages' },
-  { patterns: ['personal strengths', 'highlight any personal strengths'], category: 'strengths' },
+  { patterns: ['soft skills', 'highlight any soft skills'], category: 'softSkills' },
 ];
 
 /**
  * Order of skills sub-categories
  */
-export const SKILLS_SUB_CATEGORY_ORDER: SkillsSubCategory[] = ['technical', 'certifications', 'languages', 'strengths'];
+export const SKILLS_SUB_CATEGORY_ORDER: SkillsSubCategory[] = ['technical', 'certifications', 'languages', 'softSkills'];
 
 /**
  * Required questions for each skills sub-category
  */
 export const SKILLS_SUB_CATEGORY_QUESTIONS: Record<SkillsSubCategory, string> = {
-  technical: "**Do you have any technical skills or software you'd like to highlight? (Yes or No)**",
+  technical: "**Do you have any technical skills (software, tools, technologies) you'd like to highlight? (Yes or No)**",
   certifications: "**Do you have any certifications or licenses? (Yes or No)**",
   languages: "**Do you speak any languages you'd like to include on your resume? (Yes or No)**",
-  strengths: "**Would you like to highlight any personal strengths? (Yes or No)**",
+  softSkills: "**Would you like to highlight any soft skills? (Yes or No)**",
+};
+
+/**
+ * Detail questions for each skills sub-category (asked AFTER user says "yes")
+ */
+export const SKILLS_DETAIL_QUESTIONS: Record<SkillsSubCategory, string> = {
+  technical: "**What technical skills do you have?** (List them separated by commas, e.g., Excel, Python, Adobe Photoshop)",
+  certifications: "**What certifications or licenses do you have?** (List them separated by commas)",
+  languages: "**What languages do you speak?** (List them with proficiency, e.g., Spanish - fluent)",
+  softSkills: "**What soft skills would you like to highlight?** (e.g., leadership, teamwork, communication)",
 };
 
 /**
@@ -1132,6 +1701,28 @@ export function detectSkillsSubCategoryAnswer(userMessage: string): 'yes' | 'no'
   // If message is longer, user likely provided details
   if (userMessage.trim().length > 5) {
     return 'details';
+  }
+
+  return null;
+}
+
+/**
+ * Detect if the AI asked a gate (yes/no) question or a detail question for skills
+ */
+export function detectSkillsQuestionPhase(aiMessage: string): 'gate' | 'detail' | null {
+  const lower = aiMessage.toLowerCase();
+
+  // Check for gate questions (yes/no)
+  if (lower.includes('(yes or no)')) {
+    return 'gate';
+  }
+
+  // Check for detail questions
+  if (lower.includes('what technical skills') ||
+      lower.includes('what certifications') ||
+      lower.includes('what languages do you speak') ||
+      lower.includes('what soft skills')) {
+    return 'detail';
   }
 
   return null;
@@ -1258,4 +1849,126 @@ export function hasMeaningfulData(data: unknown): boolean {
 
     return meaningfulValues.length > 0;
   });
+}
+
+// ============================================================================
+// MULTI-ENTRY SECTION ENFORCEMENT
+// ============================================================================
+
+/**
+ * "Add another?" questions for multi-entry sections
+ */
+export const ADD_ANOTHER_QUESTIONS: Partial<Record<QuestionCategory, string>> = {
+  work: "**Do you have another job you'd like to add? (Yes or No)**",
+  education: "**Do you have any other education to add? (Yes or No)**",
+  volunteering: "**Do you have any other volunteer experience? (Yes or No)**",
+};
+
+/**
+ * First detail questions for each multi-entry section (asked after user says yes to "add another")
+ */
+export const FIRST_DETAIL_QUESTIONS: Partial<Record<QuestionCategory, string>> = {
+  work: "**What company did you work for?**",
+  education: "**What school did you attend?**",
+  volunteering: "**What organization did you volunteer with?**",
+};
+
+/**
+ * Detect if AI just asked about responsibilities (last question in an entry)
+ */
+export function detectAskedForResponsibilities(aiMessage: string): boolean {
+  const lower = aiMessage.toLowerCase();
+  return (
+    lower.includes('responsibilities') ||
+    lower.includes('duties') ||
+    lower.includes('what did you do') ||
+    lower.includes('main responsibilities') ||
+    lower.includes('key responsibilities') ||
+    // AI-generated content patterns (when AI offers suggestions for user to accept)
+    lower.includes('would you like to use these') ||
+    lower.includes('use these or modify') ||
+    lower.includes('modify them') ||
+    lower.includes('would you like these') ||
+    // Additional AI response variations for generated content
+    lower.includes('from this list') ||
+    lower.includes('include any specific') ||
+    lower.includes('want to add more')
+  );
+}
+
+/**
+ * Detect if user provided responsibilities (substantial answer, not yes/no)
+ * Also detects selection/affirmation of AI-generated suggestions
+ */
+export function detectProvidedResponsibilities(userMessage: string): boolean {
+  const trimmed = userMessage.trim();
+  const lower = trimmed.toLowerCase();
+
+  // Selection/affirmation patterns for AI-generated content
+  // e.g., "use 3 of them", "I'll take those", "perfect", "those work"
+  const selectionPatterns = [
+    /use\s+(\d+|all|some|those|these|them)/i,
+    /^(perfect|great|good|fine|those work|those are good)/i,
+    /i('ll| will)?\s*(take|pick|use|go with)/i,
+  ];
+
+  const isSelection = selectionPatterns.some(p => p.test(lower));
+
+  // Must be longer than simple yes/no and not a skip phrase, OR is a selection
+  return (
+    isSelection ||
+    (trimmed.length > 15 && !/^(yes|no|yeah|nope|skip|none|n\/a)\.?$/i.test(trimmed))
+  );
+}
+
+/**
+ * Detect if AI asked "add another" question
+ */
+export function detectAskedAddAnother(
+  aiMessage: string,
+  section: QuestionCategory
+): boolean {
+  const lower = aiMessage.toLowerCase();
+  if (section === 'work') {
+    return (
+      lower.includes('another job') ||
+      lower.includes('other job') ||
+      lower.includes('other jobs') ||
+      lower.includes('other work experience') ||
+      lower.includes('another work experience') ||
+      lower.includes('more work experience')
+    );
+  }
+  if (section === 'education') {
+    return (
+      lower.includes('other education') ||
+      lower.includes('another school') ||
+      lower.includes('another degree') ||
+      lower.includes('more education')
+    );
+  }
+  if (section === 'volunteering') {
+    return (
+      lower.includes('other volunteer') ||
+      lower.includes('another volunteer') ||
+      lower.includes('more volunteer')
+    );
+  }
+  return false;
+}
+
+/**
+ * Detect if user wants to add another entry
+ */
+export function detectUserWantsAnother(userMessage: string): boolean {
+  const trimmed = userMessage.trim().toLowerCase();
+  return /^(yes|yeah|yep|yup|sure|definitely|i do|one more|another)\.?$/i.test(trimmed);
+}
+
+/**
+ * Detect if user is done with section (no more entries)
+ */
+export function detectUserDoneWithEntries(userMessage: string): boolean {
+  const trimmed = userMessage.trim().toLowerCase();
+  return /^(no|nope|nah|none|that'?s (it|all)|i'?m done|no more|nothing)\.?$/i.test(trimmed);
 }

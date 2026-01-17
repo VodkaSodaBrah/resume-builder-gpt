@@ -1,0 +1,100 @@
+dev-1  | [api] [2026-01-13T20:20:13.157Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:20:13.831Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:20:14.374Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:20:15.046Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:20:15.590Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:20:16.867Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:20:22.927Z] DEBUG: currentSection from frontend=language, actualSection detected=work
+dev-1  | [api] [2026-01-13T20:20:23.823Z] [MULTI-ENTRY] Checking section: actualSection=work, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:20:24.367Z] DEBUG: currentSection from frontend=education, actualSection detected=education
+dev-1  | [api] [2026-01-13T20:20:25.736Z] [MULTI-ENTRY] Checking section: actualSection=education, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:20:26.284Z] DEBUG: currentSection from frontend=volunteering, actualSection detected=volunteering
+dev-1  | [api] [2026-01-13T20:20:27.319Z] [MULTI-ENTRY] Checking section: actualSection=volunteering, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:20:27.877Z] DEBUG: currentSection from frontend=skills, actualSection detected=skills
+dev-1  | [api] [2026-01-13T20:20:28.808Z] [MULTI-ENTRY] Checking section: actualSection=skills, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:21:19.215Z] DEBUG: currentSection from frontend=references, actualSection detected=skills
+dev-1  | [api] [2026-01-13T20:21:20.119Z] [MULTI-ENTRY] Checking section: actualSection=skills, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:21:20.676Z] DEBUG: currentSection from frontend=references, actualSection detected=skills
+dev-1  | [api] [2026-01-13T20:21:21.474Z] [MULTI-ENTRY] Checking section: actualSection=skills, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:21:22.024Z] DEBUG: currentSection from frontend=references, actualSection detected=skills
+dev-1  | [api] [2026-01-13T20:21:22.767Z] [MULTI-ENTRY] Checking section: actualSection=skills, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:21:24.851Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:21:25.683Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:21:26.224Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:21:26.871Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:21:27.416Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:21:28.035Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:21:28.582Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:21:29.278Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:21:29.828Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:21:30.632Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:21:36.702Z] DEBUG: currentSection from frontend=language, actualSection detected=work
+dev-1  | [api] [2026-01-13T20:21:37.605Z] [MULTI-ENTRY] Checking section: actualSection=work, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:21:38.150Z] DEBUG: currentSection from frontend=education, actualSection detected=education
+dev-1  | [api] [2026-01-13T20:21:38.993Z] [MULTI-ENTRY] Checking section: actualSection=education, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:21:39.534Z] DEBUG: currentSection from frontend=volunteering, actualSection detected=volunteering
+dev-1  | [api] [2026-01-13T20:21:40.340Z] [MULTI-ENTRY] Checking section: actualSection=volunteering, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:21:40.889Z] DEBUG: currentSection from frontend=skills, actualSection detected=skills
+dev-1  | [api] [2026-01-13T20:21:41.452Z] [MULTI-ENTRY] Checking section: actualSection=skills, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:21:42.012Z] DEBUG: currentSection from frontend=skills, actualSection detected=skills
+dev-1  | [api] [2026-01-13T20:21:43.125Z] [MULTI-ENTRY] Checking section: actualSection=skills, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:21:45.218Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:21:46.008Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:21:46.557Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:21:47.321Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:21:47.866Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:21:48.464Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:21:49.016Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:21:49.667Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:21:50.223Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:21:51.943Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:21:58.011Z] DEBUG: currentSection from frontend=language, actualSection detected=work
+dev-1  | [api] [2026-01-13T20:21:58.928Z] [MULTI-ENTRY] Checking section: actualSection=work, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:21:59.476Z] DEBUG: currentSection from frontend=education, actualSection detected=education
+dev-1  | [api] [2026-01-13T20:22:00.312Z] [MULTI-ENTRY] Checking section: actualSection=education, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:22:00.856Z] DEBUG: currentSection from frontend=volunteering, actualSection detected=volunteering
+dev-1  | [api] [2026-01-13T20:22:01.749Z] [MULTI-ENTRY] Checking section: actualSection=volunteering, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:22:02.299Z] DEBUG: currentSection from frontend=skills, actualSection detected=skills
+dev-1  | [api] [2026-01-13T20:22:03.071Z] [MULTI-ENTRY] Checking section: actualSection=skills, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:22:53.026Z] DEBUG: currentSection from frontend=references, actualSection detected=skills
+dev-1  | [api] [2026-01-13T20:22:53.911Z] [MULTI-ENTRY] Checking section: actualSection=skills, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:22:54.464Z] DEBUG: currentSection from frontend=references, actualSection detected=skills
+dev-1  | [api] [2026-01-13T20:22:55.124Z] [MULTI-ENTRY] Checking section: actualSection=skills, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:22:55.679Z] DEBUG: currentSection from frontend=references, actualSection detected=skills
+dev-1  | [api] [2026-01-13T20:22:56.531Z] [MULTI-ENTRY] Checking section: actualSection=skills, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:22:57.080Z] DEBUG: currentSection from frontend=references, actualSection detected=references
+dev-1  | [api] [2026-01-13T20:22:59.747Z] [MULTI-ENTRY] Checking section: actualSection=references, userSaidNoToSection=true
+dev-1  | [api] [2026-01-13T20:23:13.981Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:23:14.785Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:23:15.329Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:23:15.934Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:23:16.480Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:23:17.032Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:23:17.583Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:23:18.549Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:23:19.095Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:23:20.192Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:23:26.254Z] DEBUG: currentSection from frontend=language, actualSection detected=work
+dev-1  | [api] [2026-01-13T20:23:27.140Z] [MULTI-ENTRY] Checking section: actualSection=work, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:23:27.140Z] [MULTI-ENTRY] askedResp=false, providedResp=false, askedAddAnother=false
+dev-1  | [api] [2026-01-13T20:23:27.140Z] [MULTI-ENTRY] lastAssistantMessage (first 200 chars): Awesome! Now we have your personal information. 
+dev-1  | [api] [2026-01-13T20:23:27.140Z] [MULTI-ENTRY] userMessage: yes
+dev-1  | [api] [2026-01-13T20:23:28.195Z] DEBUG: currentSection from frontend=language, actualSection detected=work
+dev-1  | [api] [2026-01-13T20:23:28.844Z] [MULTI-ENTRY] Checking section: actualSection=work, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:23:28.844Z] [MULTI-ENTRY] askedResp=false, providedResp=true, askedAddAnother=false
+dev-1  | [api] [2026-01-13T20:23:28.844Z] [MULTI-ENTRY] lastAssistantMessage (first 200 chars): Great! **What company did you work for?**
+dev-1  | [api] [2026-01-13T20:23:28.844Z] [MULTI-ENTRY] userMessage: Central Perk Coffee
+dev-1  | [api] [2026-01-13T20:23:29.910Z] DEBUG: currentSection from frontend=language, actualSection detected=work
+dev-1  | [api] [2026-01-13T20:23:31.022Z] [MULTI-ENTRY] Checking section: actualSection=work, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:23:31.022Z] [MULTI-ENTRY] askedResp=false, providedResp=false, askedAddAnother=false
+dev-1  | [api] [2026-01-13T20:23:31.022Z] [MULTI-ENTRY] lastAssistantMessage (first 200 chars): Thank you! **What was your job title at Central Perk Coffee?**
+dev-1  | [api] [2026-01-13T20:23:31.022Z] [MULTI-ENTRY] userMessage: Waitress
+dev-1  | [api] [2026-01-13T20:23:32.087Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:23:32.954Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:23:34.014Z] DEBUG: currentSection from frontend=language, actualSection detected=work
+dev-1  | [api] [2026-01-13T20:23:36.588Z] [MULTI-ENTRY] Checking section: actualSection=work, userSaidNoToSection=false
+dev-1  | [api] [2026-01-13T20:23:36.588Z] [MULTI-ENTRY] askedResp=true, providedResp=true, askedAddAnother=false
+dev-1  | [api] [2026-01-13T20:23:36.588Z] [MULTI-ENTRY] lastAssistantMessage (first 200 chars): Thank you! **What were your responsibilities as a waitress at Central Perk Coffee?**
+dev-1  | [api] [2026-01-13T20:23:36.588Z] [MULTI-ENTRY] userMessage: create some responsibilities for a waitress
+dev-1  | [api] [2026-01-13T20:29:46.056Z] DEBUG: currentSection from frontend=language, actualSection detected=language
+dev-1  | [api] [2026-01-13T20:29:47.080Z] [MULTI-ENTRY] Checking section: actualSection=language, userSaidNoToSection=false

@@ -1,16 +1,10 @@
 # Development Dockerfile with hot reload
-FROM node:20-bookworm-slim
+FROM node:20
 
 WORKDIR /app
 
-# Install dependencies for Azure Functions Core Tools (.NET requires ICU)
-RUN apt-get update && apt-get install -y \
-    curl \
-    unzip \
-    libicu72 \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install Azure Functions Core Tools via npm and concurrently
+# node:20 (full image) already has everything needed
 RUN npm install -g azure-functions-core-tools@4 concurrently
 
 # Copy package files first for caching

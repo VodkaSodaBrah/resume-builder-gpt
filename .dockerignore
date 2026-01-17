@@ -1,0 +1,12 @@
+node_modules
+api/node_modules
+api/dist
+dist
+.git
+*.log
+.env*
+.DS_Store
+playwright-report
+test-results
+coverage
+claudedocs

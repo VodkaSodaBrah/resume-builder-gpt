@@ -26,6 +26,10 @@ import {
   SECTION_TRANSITION_MESSAGES,
   SECTION_ADVANCE_MAP,
   hasMeaningfulData,
+  // Gate question detection imports
+  isGateQuestion,
+  isYesNoResponse,
+  fallbackExtractData,
 } from '../lib/conversationAI';
 
 // ============================================================================
@@ -551,7 +555,7 @@ describe('SECTION_PROMPTS', () => {
 
   it('skills section mentions skill types', () => {
     expect(SECTION_PROMPTS.skills).toContain('Technical');
-    expect(SECTION_PROMPTS.skills).toContain('Soft Skills');
+    expect(SECTION_PROMPTS.skills).toContain('Personal Strengths'); // Updated from "Soft Skills"
     expect(SECTION_PROMPTS.skills).toContain('Certifications');
   });
 
@@ -777,5 +781,409 @@ describe('SECTION_ADVANCE_MAP', () => {
     expect(SECTION_ADVANCE_MAP.volunteering).toBe('skills');
     expect(SECTION_ADVANCE_MAP.skills).toBe('references');
     expect(SECTION_ADVANCE_MAP.references).toBe('review');
+  });
+});
+
+// ============================================================================
+// Gate Question Detection Tests
+// ============================================================================
+
+describe('isGateQuestion', () => {
+  describe('explicit yes/no patterns', () => {
+    it('detects "(Yes or No)" format', () => {
+      expect(isGateQuestion('Do you have any work experience? (Yes or No)')).toBe(true);
+      expect(isGateQuestion('Do you have any certifications or licenses? (Yes or No)')).toBe(true);
+      expect(isGateQuestion('Do you have any volunteer experience? (Yes or No)')).toBe(true);
+    });
+
+    it('detects "yes or no?" format', () => {
+      expect(isGateQuestion('Do you have any skills to add, yes or no?')).toBe(true);
+    });
+  });
+
+  describe('implicit gate question patterns', () => {
+    it('detects "Do you have any...?" pattern', () => {
+      expect(isGateQuestion('Do you have any certifications?')).toBe(true);
+      expect(isGateQuestion('Do you have any technical skills?')).toBe(true);
+      expect(isGateQuestion('Do you have any references?')).toBe(true);
+    });
+
+    it('detects "Would you like to add...?" pattern', () => {
+      expect(isGateQuestion('Would you like to add any languages?')).toBe(true);
+      expect(isGateQuestion('Would you like to include any soft skills?')).toBe(true);
+    });
+
+    it('detects "Is this your current job?" pattern', () => {
+      expect(isGateQuestion('Is this your current job?')).toBe(true);
+      expect(isGateQuestion('Is this your current position?')).toBe(true);
+    });
+
+    it('detects "Are you still...?" pattern', () => {
+      expect(isGateQuestion('Are you still working there?')).toBe(true);
+      expect(isGateQuestion('Are you still studying?')).toBe(true);
+    });
+  });
+
+  describe('non-gate questions', () => {
+    it('does NOT detect detail questions', () => {
+      expect(isGateQuestion('What company did you work for?')).toBe(false);
+      expect(isGateQuestion('What was your job title?')).toBe(false);
+      expect(isGateQuestion('What certifications do you have?')).toBe(false);
+      expect(isGateQuestion('What languages do you speak?')).toBe(false);
+      expect(isGateQuestion('When did you start working there?')).toBe(false);
+    });
+  });
+});
+
+describe('isYesNoResponse', () => {
+  describe('yes responses', () => {
+    it('detects explicit yes', () => {
+      expect(isYesNoResponse('yes')).toBe('yes');
+      expect(isYesNoResponse('Yes')).toBe('yes');
+      expect(isYesNoResponse('YES')).toBe('yes');
+      expect(isYesNoResponse('yes.')).toBe('yes');
+    });
+
+    it('detects yes variants', () => {
+      expect(isYesNoResponse('yeah')).toBe('yes');
+      expect(isYesNoResponse('yep')).toBe('yes');
+      expect(isYesNoResponse('yup')).toBe('yes');
+      expect(isYesNoResponse('sure')).toBe('yes');
+      expect(isYesNoResponse('definitely')).toBe('yes');
+      expect(isYesNoResponse('absolutely')).toBe('yes');
+      expect(isYesNoResponse('i do')).toBe('yes');
+      expect(isYesNoResponse('i have')).toBe('yes');
+      expect(isYesNoResponse('y')).toBe('yes');
+      expect(isYesNoResponse('ok')).toBe('yes');
+      expect(isYesNoResponse('okay')).toBe('yes');
+    });
+  });
+
+  describe('no responses', () => {
+    it('detects explicit no', () => {
+      expect(isYesNoResponse('no')).toBe('no');
+      expect(isYesNoResponse('No')).toBe('no');
+      expect(isYesNoResponse('NO')).toBe('no');
+      expect(isYesNoResponse('no.')).toBe('no');
+    });
+
+    it('detects no variants', () => {
+      expect(isYesNoResponse('nope')).toBe('no');
+      expect(isYesNoResponse('nah')).toBe('no');
+      expect(isYesNoResponse('none')).toBe('no');
+      expect(isYesNoResponse('nothing')).toBe('no');
+      expect(isYesNoResponse('skip')).toBe('no');
+      expect(isYesNoResponse('n/a')).toBe('no');
+      expect(isYesNoResponse('n')).toBe('no');
+      expect(isYesNoResponse('not really')).toBe('no');
+    });
+  });
+
+  describe('non-yes/no responses', () => {
+    it('returns null for content responses', () => {
+      expect(isYesNoResponse('Google')).toBeNull();
+      expect(isYesNoResponse('Software Engineer')).toBeNull();
+      expect(isYesNoResponse('AWS Certified Developer')).toBeNull();
+      expect(isYesNoResponse('Python, JavaScript, React')).toBeNull();
+      expect(isYesNoResponse('I worked at Google for 3 years')).toBeNull();
+      expect(isYesNoResponse('john.smith@gmail.com')).toBeNull();
+    });
+  });
+});
+
+describe('fallbackExtractData gate question handling', () => {
+  describe('certifications - critical bug fix', () => {
+    it('should NOT extract "yes" as certification value', () => {
+      const result = fallbackExtractData(
+        'yes',
+        'skills',
+        'Do you have any certifications or licenses? (Yes or No)'
+      );
+
+      // Should set the flag
+      const hasFlag = result.fields.some(
+        f => f.path === 'hasCertifications' && f.value === true
+      );
+      expect(hasFlag).toBe(true);
+
+      // Should NOT have "yes" as a certification
+      const hasBadCert = result.fields.some(
+        f => f.path === 'skills.certifications' &&
+             Array.isArray(f.value) &&
+             f.value.includes('yes')
+      );
+      expect(hasBadCert).toBe(false);
+    });
+
+    it('should extract actual certifications after yes response', () => {
+      const result = fallbackExtractData(
+        'AWS Certified Developer, Google Cloud Professional',
+        'skills',
+        'What certifications do you have?'
+      );
+
+      const certField = result.fields.find(f => f.path === 'skills.certifications');
+      expect(certField).toBeDefined();
+      expect(certField?.value).toEqual(['AWS Certified Developer', 'Google Cloud Professional']);
+    });
+  });
+
+  describe('work experience gate questions', () => {
+    it('should handle "yes" to work experience gate', () => {
+      const result = fallbackExtractData(
+        'yes',
+        'work',
+        'Do you have any work experience? (Yes or No)'
+      );
+
+      const hasFlag = result.fields.some(
+        f => f.path === 'hasWorkExperience' && f.value === true
+      );
+      expect(hasFlag).toBe(true);
+
+      // Should not extract "yes" as company name
+      const hasCompany = result.fields.some(
+        f => f.path === 'workExperience[0].companyName'
+      );
+      expect(hasCompany).toBe(false);
+    });
+
+    it('should handle "no" to work experience gate', () => {
+      const result = fallbackExtractData(
+        'no',
+        'work',
+        'Do you have any work experience? (Yes or No)'
+      );
+
+      const hasFlag = result.fields.some(
+        f => f.path === 'hasWorkExperience' && f.value === false
+      );
+      expect(hasFlag).toBe(true);
+      expect(result.suggestedSection).toBe('education');
+    });
+
+    it('should handle "yes" to current job question', () => {
+      const result = fallbackExtractData(
+        'yes',
+        'work',
+        'Is this your current job?'
+      );
+
+      const isCurrentFlag = result.fields.some(
+        f => f.path === 'workExperience[0].isCurrentJob' && f.value === true
+      );
+      expect(isCurrentFlag).toBe(true);
+
+      // Should NOT extract "yes" as endDate
+      const hasEndDate = result.fields.some(
+        f => f.path === 'workExperience[0].endDate' && f.value === 'yes'
+      );
+      expect(hasEndDate).toBe(false);
+    });
+
+    it('should extract company name for detail questions', () => {
+      const result = fallbackExtractData(
+        'Google',
+        'work',
+        'What company did you work for?'
+      );
+
+      const companyField = result.fields.find(
+        f => f.path === 'workExperience[0].companyName'
+      );
+      expect(companyField).toBeDefined();
+      expect(companyField?.value).toBe('Google');
+    });
+  });
+
+  describe('education gate questions', () => {
+    it('should handle "yes" to education gate', () => {
+      const result = fallbackExtractData(
+        'yes',
+        'education',
+        'Do you have any education to add? (Yes or No)'
+      );
+
+      const hasFlag = result.fields.some(
+        f => f.path === 'hasEducation' && f.value === true
+      );
+      expect(hasFlag).toBe(true);
+    });
+
+    it('should NOT extract "yes" as degree value', () => {
+      const result = fallbackExtractData(
+        'yes',
+        'education',
+        'Do you have any education? (Yes or No)'
+      );
+
+      const hasBadDegree = result.fields.some(
+        f => f.path === 'education[0].degree' && f.value === 'yes'
+      );
+      expect(hasBadDegree).toBe(false);
+    });
+  });
+
+  describe('languages - sub-category handling', () => {
+    it('should handle "yes" to languages gate', () => {
+      const result = fallbackExtractData(
+        'yes',
+        'skills',
+        'Do you speak any languages other than English? (Yes or No)'
+      );
+
+      const hasFlag = result.fields.some(
+        f => f.path === 'hasLanguages' && f.value === true
+      );
+      expect(hasFlag).toBe(true);
+
+      // Should NOT extract "yes" as a language
+      const hasBadLanguage = result.fields.some(
+        f => f.path === 'skills.languages' &&
+             Array.isArray(f.value) &&
+             f.value.some((l: {language: string}) => l.language === 'yes')
+      );
+      expect(hasBadLanguage).toBe(false);
+    });
+
+    it('should extract actual languages after yes response', () => {
+      const result = fallbackExtractData(
+        'Spanish - fluent, French - intermediate',
+        'skills',
+        'What languages do you speak?'
+      );
+
+      const langField = result.fields.find(f => f.path === 'skills.languages');
+      expect(langField).toBeDefined();
+      expect(langField?.value).toHaveLength(2);
+    });
+  });
+
+  describe('volunteering gate questions', () => {
+    it('should handle "yes" to volunteering gate', () => {
+      const result = fallbackExtractData(
+        'yes',
+        'volunteering',
+        'Do you have any volunteer experience? (Yes or No)'
+      );
+
+      const hasFlag = result.fields.some(
+        f => f.path === 'hasVolunteering' && f.value === true
+      );
+      expect(hasFlag).toBe(true);
+    });
+
+    it('should NOT extract "yes" as organization name', () => {
+      const result = fallbackExtractData(
+        'yes',
+        'volunteering',
+        'Do you have any volunteer experience? (Yes or No)'
+      );
+
+      const hasBadOrg = result.fields.some(
+        f => f.path === 'volunteering[0].organizationName' && f.value === 'yes'
+      );
+      expect(hasBadOrg).toBe(false);
+    });
+  });
+
+  describe('references gate questions', () => {
+    it('should handle "yes" to references gate', () => {
+      const result = fallbackExtractData(
+        'yes',
+        'references',
+        'Would you like to add any references? (Yes or No)'
+      );
+
+      const hasFlag = result.fields.some(
+        f => f.path === 'hasReferences' && f.value === true
+      );
+      expect(hasFlag).toBe(true);
+    });
+
+    it('should handle "no" to references gate', () => {
+      const result = fallbackExtractData(
+        'no',
+        'references',
+        'Do you have any references to add? (Yes or No)'
+      );
+
+      const hasFlag = result.fields.some(
+        f => f.path === 'hasReferences' && f.value === false
+      );
+      expect(hasFlag).toBe(true);
+      expect(result.suggestedSection).toBe('review');
+    });
+
+    it('should handle "upon request" for references', () => {
+      const result = fallbackExtractData(
+        'available upon request',
+        'references',
+        'Do you have any references to add? (Yes or No)'
+      );
+
+      const uponRequestFlag = result.fields.some(
+        f => f.path === 'referencesUponRequest' && f.value === true
+      );
+      expect(uponRequestFlag).toBe(true);
+    });
+  });
+
+  describe('soft skills gate questions', () => {
+    it('should handle "yes" to soft skills gate', () => {
+      const result = fallbackExtractData(
+        'yes',
+        'skills',
+        'Do you have any soft skills or personal strengths? (Yes or No)'
+      );
+
+      const hasFlag = result.fields.some(
+        f => f.path === 'hasSoftSkills' && f.value === true
+      );
+      expect(hasFlag).toBe(true);
+
+      // Should NOT extract "yes" as a soft skill
+      const hasBadSkill = result.fields.some(
+        f => f.path === 'skills.softSkills' &&
+             Array.isArray(f.value) &&
+             f.value.includes('yes')
+      );
+      expect(hasBadSkill).toBe(false);
+    });
+  });
+
+  describe('technical skills gate questions', () => {
+    it('should handle "yes" to technical skills gate', () => {
+      const result = fallbackExtractData(
+        'yes',
+        'skills',
+        'Do you have any technical skills? (Yes or No)'
+      );
+
+      const hasFlag = result.fields.some(
+        f => f.path === 'hasTechnicalSkills' && f.value === true
+      );
+      expect(hasFlag).toBe(true);
+
+      // Should NOT extract "yes" as a technical skill
+      const hasBadSkill = result.fields.some(
+        f => f.path === 'skills.technicalSkills' &&
+             Array.isArray(f.value) &&
+             f.value.includes('yes')
+      );
+      expect(hasBadSkill).toBe(false);
+    });
+
+    it('should extract actual technical skills for detail questions', () => {
+      const result = fallbackExtractData(
+        'Python, JavaScript, React, Node.js',
+        'skills',
+        'What technical skills do you have?'
+      );
+
+      const skillsField = result.fields.find(f => f.path === 'skills.technicalSkills');
+      expect(skillsField).toBeDefined();
+      expect(skillsField?.value).toEqual(['Python', 'JavaScript', 'React', 'Node.js']);
+    });
   });
 });

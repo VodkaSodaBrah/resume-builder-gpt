@@ -8,12 +8,19 @@ import {
   Palette,
   RefreshCw,
   AlertCircle,
+  User,
+  Briefcase,
+  GraduationCap,
+  Heart,
+  Wrench,
+  Users,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/hooks/useAuth';
 import { useConversationStore } from '@/stores/conversationStore';
 import { useAnalyticsStore, AnalyticsEvents } from '@/stores/analyticsStore';
-import { downloadPDF, downloadDOCX } from '@/lib/resumeGenerator';
+import { downloadPDF, downloadDOCX, expandDegreeAbbreviation } from '@/lib/resumeGenerator';
 import { getResume, supabase } from '@/lib/supabase';
 import type { ResumeData, TemplateStyle } from '@/types';
 
@@ -71,6 +78,26 @@ export const Preview: React.FC = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateStyle>(
     initialData?.templateStyle || 'modern'
   );
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  // Section options for the Edit modal
+  const editSections = [
+    { id: 'personal', label: 'Personal Information', icon: User, description: 'Name, email, phone, location' },
+    { id: 'work', label: 'Work Experience', icon: Briefcase, description: 'Jobs, responsibilities, dates' },
+    { id: 'education', label: 'Education', icon: GraduationCap, description: 'Schools, degrees, fields of study' },
+    { id: 'volunteering', label: 'Volunteering', icon: Heart, description: 'Volunteer work and community service' },
+    { id: 'skills', label: 'Skills', icon: Wrench, description: 'Technical skills, certifications, languages' },
+    { id: 'references', label: 'References', icon: Users, description: 'Professional references' },
+  ];
+
+  const handleEditSection = (sectionId: string) => {
+    setShowEditModal(false);
+    // Navigate to builder with section parameter
+    const builderPath = resumeId && resumeId !== 'new'
+      ? `/builder/${resumeId}?editSection=${sectionId}`
+      : `/builder?editSection=${sectionId}`;
+    navigate(builderPath);
+  };
 
   // Load resume from Supabase if resumeId provided and no initial data
   useEffect(() => {
@@ -383,7 +410,7 @@ export const Preview: React.FC = () => {
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => navigate('/builder')}
+              onClick={() => setShowEditModal(true)}
             >
               Edit Resume
             </Button>
@@ -494,7 +521,7 @@ export const Preview: React.FC = () => {
                     {resumeData.education.map((edu, index) => (
                       <div key={index} className="mb-2">
                         <p className="font-bold">
-                          {edu.degree}
+                          {expandDegreeAbbreviation(edu.degree)}
                           {edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ''}
                         </p>
                         <p className="text-sm text-gray-600 italic">
@@ -506,8 +533,44 @@ export const Preview: React.FC = () => {
                   </div>
                 )}
 
+                {/* Volunteering */}
+                {resumeData.volunteering && resumeData.volunteering.length > 0 && (
+                  <div className="mb-6">
+                    <h2
+                      className={`text-sm uppercase tracking-wider font-bold mb-2 pb-1 border-b ${
+                        selectedTemplate === 'modern'
+                          ? 'text-blue-600 border-blue-600'
+                          : selectedTemplate === 'professional'
+                          ? 'text-green-600 border-green-600'
+                          : 'text-black border-black'
+                      }`}
+                    >
+                      Volunteer Experience
+                    </h2>
+                    {resumeData.volunteering.map((vol, index) => (
+                      <div key={index} className="mb-3">
+                        <div className="flex justify-between items-start">
+                          <p className="font-bold">{vol.role}</p>
+                          <span className="text-sm text-gray-600 italic">
+                            {vol.startDate}{vol.endDate ? ` - ${vol.endDate}` : ' - Present'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700">{vol.organizationName}</p>
+                        {vol.responsibilities && (
+                          <p className="mt-1 text-sm text-gray-600">{vol.responsibilities}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Skills */}
                 {resumeData.skills && (
+                  resumeData.skills.technicalSkills?.length > 0 ||
+                  resumeData.skills.softSkills?.length > 0 ||
+                  resumeData.skills.certifications?.length > 0 ||
+                  resumeData.skills.languages?.length > 0
+                ) && (
                   <div className="mb-6">
                     <h2
                       className={`text-sm uppercase tracking-wider font-bold mb-2 pb-1 border-b ${
@@ -533,6 +596,12 @@ export const Preview: React.FC = () => {
                           {resumeData.skills.softSkills.join(', ')}
                         </li>
                       )}
+                      {resumeData.skills.certifications?.length > 0 && (
+                        <li className="mb-1">
+                          <strong>Certifications:</strong>{' '}
+                          {resumeData.skills.certifications.join(', ')}
+                        </li>
+                      )}
                       {resumeData.skills.languages?.length > 0 && (
                         <li className="mb-1">
                           <strong>Languages:</strong>{' '}
@@ -544,11 +613,95 @@ export const Preview: React.FC = () => {
                     </ul>
                   </div>
                 )}
+
+                {/* References */}
+                {resumeData.references && resumeData.references.length > 0 && (
+                  <div className="mb-6">
+                    <h2
+                      className={`text-sm uppercase tracking-wider font-bold mb-2 pb-1 border-b ${
+                        selectedTemplate === 'modern'
+                          ? 'text-blue-600 border-blue-600'
+                          : selectedTemplate === 'professional'
+                          ? 'text-green-600 border-green-600'
+                          : 'text-black border-black'
+                      }`}
+                    >
+                      References
+                    </h2>
+                    {resumeData.references.map((ref, index) => (
+                      <div key={index} className="mb-3">
+                        <p className="font-bold">{ref.name}</p>
+                        {ref.relationship && (
+                          <p className="text-sm text-gray-600 italic">{ref.relationship}</p>
+                        )}
+                        <p className="text-sm text-gray-500">
+                          {[ref.email, ref.phone].filter(Boolean).join(' | ')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       </main>
+
+      {/* Edit Section Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowEditModal(false)}
+          />
+
+          {/* Modal */}
+          <div className="relative bg-[#1a1a1a] border border-[#27272a] rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-white">Edit Resume</h2>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="p-1 hover:bg-[#27272a] rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-[#71717a]" />
+              </button>
+            </div>
+
+            {/* Section Options */}
+            <p className="text-[#a1a1aa] text-sm mb-4">
+              Which section would you like to edit?
+            </p>
+
+            <div className="space-y-2">
+              {editSections.map((section) => (
+                <button
+                  key={section.id}
+                  onClick={() => handleEditSection(section.id)}
+                  className="w-full flex items-center gap-4 p-3 rounded-lg bg-[#27272a] hover:bg-[#3f3f46] transition-colors text-left"
+                >
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                    <section.icon className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">{section.label}</p>
+                    <p className="text-[#71717a] text-sm">{section.description}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Cancel Button */}
+            <button
+              onClick={() => setShowEditModal(false)}
+              className="w-full mt-4 py-2 text-[#a1a1aa] hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

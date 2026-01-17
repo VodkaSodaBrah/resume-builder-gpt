@@ -13,8 +13,8 @@ import type {
   AIConversationContext,
   AIConversationState,
   ChatResponse,
-  SpecialContent,
 } from '@/types';
+import { formatPhoneNumber, formatCityState } from '@/lib/formatters';
 
 // Generate unique IDs
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -305,7 +305,15 @@ export const useAIConversationStore = create<AIConversationStore>()(
 
           // Apply regular high-confidence fields
           for (const field of highConfidenceFields) {
-            updatedData = setNestedValue(updatedData, field.path, field.value);
+            // Apply formatting for phone and city fields
+            let formattedValue = field.value;
+            if (field.path === 'personalInfo.phone' && typeof field.value === 'string') {
+              formattedValue = formatPhoneNumber(field.value);
+            } else if (field.path === 'personalInfo.city' && typeof field.value === 'string') {
+              formattedValue = formatCityState(field.value);
+            }
+
+            updatedData = setNestedValue(updatedData, field.path, formattedValue);
 
             // Track as answered topic
             const topic = field.path.split('.')[0];

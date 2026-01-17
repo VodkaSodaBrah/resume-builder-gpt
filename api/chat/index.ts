@@ -15,6 +15,7 @@ import {
   detectExportIntent,
   parseExtractedData,
   cleanAIResponse,
+  fallbackExtractData,
   buildContextSummary,
   getNextSection,
   shouldAskFollowUp,
@@ -30,7 +31,17 @@ import {
   detectSkillsSubCategory,
   getNextSkillsSubCategory,
   detectSkillsSubCategoryAnswer,
+  detectSkillsQuestionPhase,
   SKILLS_SUB_CATEGORY_QUESTIONS,
+  SKILLS_DETAIL_QUESTIONS,
+  // Multi-entry section imports
+  ADD_ANOTHER_QUESTIONS,
+  FIRST_DETAIL_QUESTIONS,
+  detectAskedForResponsibilities,
+  detectProvidedResponsibilities,
+  detectAskedAddAnother,
+  detectUserWantsAnother,
+  detectUserDoneWithEntries,
 } from '../lib/conversationAI';
 import { getInlineEmailGuide } from '../lib/emailGuide';
 
@@ -128,21 +139,109 @@ export async function chatHandler(
     const wantsToMoveOn = detectEscapePhrase(userMessage);
     const seemsFrustrated = detectFrustration(userMessage);
 
-    // Detect actual section from last AI message (frontend tracking may be out of sync)
+    // Detect actual section from conversation context (frontend tracking may be out of sync)
+    // Look at recent messages (last 4) to determine the actual section context
+    const recentMessages = messages.slice(-4);
+    const recentContext = recentMessages.map(m => m.content.toLowerCase()).join(' ');
     const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop()?.content || '';
     let actualSection = currentSection;
 
-    // Check if last AI message was a yes/no section question
-    if (lastAssistantMessage.toLowerCase().includes('do you have any work experience')) {
-      actualSection = 'work';
-    } else if (lastAssistantMessage.toLowerCase().includes('do you have any education')) {
-      actualSection = 'education';
-    } else if (lastAssistantMessage.toLowerCase().includes('do you have any volunteer')) {
+    // Check if last AI message was a yes/no section question OR a detail question within a section
+    const lowerLastMessage = lastAssistantMessage.toLowerCase();
+
+    // Also check recent context for section keywords (helps with generic follow-up questions)
+    // NOTE: "organization" alone is too generic (e.g., "organization of the dining area" in job responsibilities)
+    // Use more specific patterns like "volunteer organization" or just "volunteer"
+    const recentHasVolunteer = recentContext.includes('volunteer') ||
+                               recentContext.includes('volunteer organization') ||
+                               recentContext.includes('volunteering');
+    const recentHasWork = recentContext.includes('company') || recentContext.includes('job title') ||
+                          recentContext.includes('worked') || recentContext.includes('work experience') ||
+                          recentContext.includes('position') || recentContext.includes('duties') ||
+                          recentContext.includes('job') || recentContext.includes('employer');
+    const recentHasEducation = recentContext.includes('school') || recentContext.includes('degree') || recentContext.includes('field of study');
+
+    // Volunteering section detection - CHECK FIRST since volunteering questions can contain generic terms
+    // that might also match work patterns (like "responsibilities", "what did you do")
+    // Uses both current message AND recent context to handle generic follow-up questions
+    if (lowerLastMessage.includes('do you have any volunteer') ||
+        lowerLastMessage.includes('would you like to include any volunteer') ||
+        lowerLastMessage.includes('include any volunteer') ||
+        lowerLastMessage.includes('what organization') ||
+        lowerLastMessage.includes('volunteer role') ||
+        lowerLastMessage.includes('another volunteer') ||
+        lowerLastMessage.includes('other volunteer') ||
+        lowerLastMessage.includes('as a volunteer') ||
+        lowerLastMessage.includes('volunteer experience') ||
+        (lowerLastMessage.includes('volunteer') && lowerLastMessage.includes('what did you do')) ||
+        (lowerLastMessage.includes('volunteer') && lowerLastMessage.includes('responsibilities')) ||
+        (lowerLastMessage.includes('volunteer') && lowerLastMessage.includes('role')) ||
+        // Fallback: if recent context has volunteer keywords and this is a generic question
+        (recentHasVolunteer && !recentHasWork && !recentHasEducation &&
+         (lowerLastMessage.includes('what did you do') || lowerLastMessage.includes('responsibilities') ||
+          lowerLastMessage.includes('role') || lowerLastMessage.includes('recorded')))) {
       actualSection = 'volunteering';
-    } else if (lastAssistantMessage.toLowerCase().includes('do you have any technical skills')) {
+    // Work section detection (yes/no OR detail questions)
+    // NOTE: Don't include generic terms like "responsibilities" without context
+    } else if (lowerLastMessage.includes('do you have any work experience') ||
+        lowerLastMessage.includes('would you like to include any work experience') ||
+        lowerLastMessage.includes('include any work experience') ||
+        lowerLastMessage.includes('what company') ||
+        lowerLastMessage.includes('the company') ||
+        lowerLastMessage.includes('company where you work') ||
+        lowerLastMessage.includes('company you work') ||
+        lowerLastMessage.includes('job title') ||
+        lowerLastMessage.includes('when did you start') ||
+        lowerLastMessage.includes('is it your current') ||
+        lowerLastMessage.includes('current job') ||
+        lowerLastMessage.includes('still work') ||
+        lowerLastMessage.includes('another job') ||
+        lowerLastMessage.includes('other jobs') ||
+        lowerLastMessage.includes('any other job') ||
+        lowerLastMessage.includes('other work experience') ||
+        (lowerLastMessage.includes('job') && lowerLastMessage.includes('responsibilities')) ||
+        (lowerLastMessage.includes('work') && lowerLastMessage.includes('responsibilities')) ||
+        // AI-generated responsibilities detection: when AI offers generated content
+        // and the message contains responsibilities without volunteer context
+        (!recentHasVolunteer && lowerLastMessage.includes('responsibilities') &&
+         (lowerLastMessage.includes('would you like to use') ||
+          lowerLastMessage.includes('would you like to include') ||
+          lowerLastMessage.includes('from this list') ||
+          lowerLastMessage.includes('any of these'))) ||
+        // Fallback: if recent context has work keywords and this is a generic question
+        (recentHasWork && !recentHasVolunteer && !recentHasEducation &&
+         (lowerLastMessage.includes('what did you do') || lowerLastMessage.includes('responsibilities') ||
+          lowerLastMessage.includes('recorded')))) {
+      actualSection = 'work';
+    // Education section detection
+    } else if (lowerLastMessage.includes('do you have any education') ||
+               lowerLastMessage.includes('would you like to include any education') ||
+               lowerLastMessage.includes('include any education') ||
+               lowerLastMessage.includes('what school') ||
+               lowerLastMessage.includes('what degree') ||
+               lowerLastMessage.includes('field of study') ||
+               lowerLastMessage.includes('another school') ||
+               lowerLastMessage.includes('other education')) {
+      actualSection = 'education';
+    // Skills section detection - must detect ALL sub-categories
+    // technical, certifications, languages, softSkills
+    } else if (lowerLastMessage.includes('do you have any technical skills') ||
+               lowerLastMessage.includes('software you\'d like to highlight') ||
+               lowerLastMessage.includes('programming languages') ||
+               lowerLastMessage.includes('software tools') ||
+               lowerLastMessage.includes('certifications or licenses') ||
+               lowerLastMessage.includes('certifications') ||
+               lowerLastMessage.includes('speak any languages') ||
+               lowerLastMessage.includes('languages you\'d like to include') ||
+               lowerLastMessage.includes('soft skills') ||
+               lowerLastMessage.includes('highlight any soft skills') ||
+               lowerLastMessage.includes('personal strengths')) {
       actualSection = 'skills';
-    } else if (lastAssistantMessage.toLowerCase().includes('add professional references') ||
-               lastAssistantMessage.toLowerCase().includes('would you like to add references')) {
+    // References section detection
+    } else if (lowerLastMessage.includes('add professional references') ||
+               lowerLastMessage.includes('would you like to add references') ||
+               lowerLastMessage.includes('reference name') ||
+               lowerLastMessage.includes('reference contact')) {
       actualSection = 'references';
     }
 
@@ -180,6 +279,8 @@ export async function chatHandler(
     const wantsToExport =
       (currentSection === 'review' || currentSection === 'complete') &&
       detectExportIntent(userMessage);
+
+    context.log(`DEBUG: currentSection=${currentSection}, userMessage=${userMessage.substring(0, 50)}, wantsToExport=${wantsToExport}`);
 
     // Build context summary for the AI
     const contextSummary = buildContextSummary(
@@ -294,7 +395,26 @@ DO NOT ask the yes/no question again - they already answered it.`;
     );
 
     // Parse the extracted data from AI response
-    const extractedData = parseExtractedData(aiResult.response);
+    let extractedData = parseExtractedData(aiResult.response);
+    context.log(`DEBUG: AI raw response (first 500 chars): ${aiResult.response.substring(0, 500)}`);
+    context.log(`DEBUG: extractedData from AI: ${JSON.stringify(extractedData)}`);
+
+    // FALLBACK: If AI didn't include extracted_data tag, extract programmatically
+    if (!extractedData) {
+      const lastAssistantMsg = messages.filter(m => m.role === 'assistant').pop()?.content || '';
+      const fallback = fallbackExtractData(userMessage, actualSection, lastAssistantMsg);
+      if (fallback.fields.length > 0 || fallback.suggestedSection) {
+        extractedData = {
+          fields: fallback.fields,
+          suggestedSection: fallback.suggestedSection,
+          followUpNeeded: false,
+          specialContent: null,
+          isComplete: false,
+        };
+        context.log(`DEBUG: Used fallback extraction: ${JSON.stringify(extractedData)}`);
+      }
+    }
+
     let cleanResponse = cleanAIResponse(aiResult.response);
 
     // =========================================================================
@@ -377,47 +497,154 @@ DO NOT ask the yes/no question again - they already answered it.`;
     }
 
     // =========================================================================
-    // SKILLS SUB-CATEGORY ENFORCEMENT
-    // Ensures all 4 skills sub-categories are asked in order
+    // SKILLS SUB-CATEGORY ENFORCEMENT - Two-phase flow
+    // Phase 1 (gate): Ask yes/no for each sub-category
+    // Phase 2 (detail): If yes, ask for specific skills before moving on
+    // NOTE: We do NOT check userSaidNoToSection here because saying "no" to a
+    // sub-category (e.g., technical skills) should move to next sub-category,
+    // not skip the entire skills section.
     // =========================================================================
-    if (actualSection === 'skills' && !userSaidNoToSection) {
+    if (actualSection === 'skills') {
       const lastAISubCategory = detectSkillsSubCategory(lastAssistantMessage);
-      context.log(`DEBUG: Skills sub-category detected in last AI message: ${lastAISubCategory}`);
+      const lastAIPhase = detectSkillsQuestionPhase(lastAssistantMessage);
+      context.log(`DEBUG: Skills - subCategory=${lastAISubCategory}, phase=${lastAIPhase}`);
 
-      if (lastAISubCategory) {
-        // User just responded to a skills sub-category question
+      if (lastAISubCategory && lastAIPhase) {
         const userAnswer = detectSkillsSubCategoryAnswer(userMessage);
         context.log(`DEBUG: User answer type: ${userAnswer}`);
 
-        if (userAnswer === 'no' || userAnswer === 'details' || userAnswer === 'yes') {
-          // Move to next sub-category
+        if (lastAIPhase === 'gate') {
+          // User just answered a gate (yes/no) question
+          if (userAnswer === 'yes') {
+            // User said YES - ask for details (SAME sub-category)
+            const detailQuestion = SKILLS_DETAIL_QUESTIONS[lastAISubCategory];
+            cleanResponse = `Great! ${detailQuestion}`;
+            followUpNeeded = true;
+            context.log(`User said YES to ${lastAISubCategory}, asking for details`);
+          } else if (userAnswer === 'no') {
+            // User said NO - move to NEXT sub-category's gate question
+            const nextSubCategory = getNextSkillsSubCategory(lastAISubCategory);
+
+            if (nextSubCategory === 'done') {
+              // All sub-categories complete, move to references
+              suggestedSection = 'references';
+              cleanResponse = "No problem! **Would you like to add professional references? (Yes or No)**";
+              context.log('All skills sub-categories done, moving to references');
+            } else {
+              // Ask next sub-category gate question
+              const nextGateQuestion = SKILLS_SUB_CATEGORY_QUESTIONS[nextSubCategory];
+              cleanResponse = `No problem! ${nextGateQuestion}`;
+              followUpNeeded = true;
+              context.log(`Moving to next skills sub-category: ${nextSubCategory}`);
+            }
+          }
+        } else if (lastAIPhase === 'detail') {
+          // User just provided skill details - move to NEXT sub-category's gate question
           const nextSubCategory = getNextSkillsSubCategory(lastAISubCategory);
-          context.log(`DEBUG: Next skills sub-category: ${nextSubCategory}`);
 
           if (nextSubCategory === 'done') {
-            // All sub-categories done, move to references
-            if (!suggestedSection) {
-              suggestedSection = 'references';
-            }
-            // Ensure response transitions to references with the yes/no question
-            if (!cleanResponse.toLowerCase().includes('reference')) {
-              const acknowledgment = userAnswer === 'no' ? 'No problem!' : 'Great!';
-              cleanResponse = `${acknowledgment} **Would you like to add professional references? (Yes or No)**`;
-              context.log('Forcing transition to references after all skills sub-categories');
-            }
+            // All sub-categories complete, move to references
+            suggestedSection = 'references';
+            cleanResponse = "Great! **Would you like to add professional references? (Yes or No)**";
+            context.log('All skills sub-categories done, moving to references');
           } else {
-            // Force next sub-category question
-            const nextQuestion = SKILLS_SUB_CATEGORY_QUESTIONS[nextSubCategory];
-            if (!cleanResponse.includes(nextQuestion)) {
-              // AI didn't ask the right question, force it
-              const acknowledgment = userAnswer === 'no' ? 'No problem!' : 'Great!';
-              cleanResponse = `${acknowledgment} ${nextQuestion}`;
-              context.log(`Forcing skills sub-category question: ${nextSubCategory}`);
-            }
-            // Stay in skills section
+            // Ask next sub-category gate question
+            const nextGateQuestion = SKILLS_SUB_CATEGORY_QUESTIONS[nextSubCategory];
+            cleanResponse = `Great, I've recorded those! ${nextGateQuestion}`;
             followUpNeeded = true;
+            context.log(`Skills details collected, moving to: ${nextSubCategory}`);
           }
         }
+      }
+    }
+
+    // =========================================================================
+    // MULTI-ENTRY SECTION ENFORCEMENT (Work, Education, Volunteering)
+    // Ensures "add another?" is asked after each complete entry
+    // =========================================================================
+    const multiEntrySections: QuestionCategory[] = ['work', 'education', 'volunteering'];
+    console.log(`[MULTI-ENTRY] Checking section: actualSection=${actualSection}, userSaidNoToSection=${userSaidNoToSection}`);
+    if (multiEntrySections.includes(actualSection) && !userSaidNoToSection) {
+      const askedResponsibilities = detectAskedForResponsibilities(lastAssistantMessage);
+      const providedResponsibilities = detectProvidedResponsibilities(userMessage);
+      const askedAddAnother = detectAskedAddAnother(lastAssistantMessage, actualSection);
+
+      console.log(`[MULTI-ENTRY] askedResp=${askedResponsibilities}, providedResp=${providedResponsibilities}, askedAddAnother=${askedAddAnother}`);
+      console.log(`[MULTI-ENTRY] lastAssistantMessage (first 200 chars): ${lastAssistantMessage.substring(0, 200)}`);
+      console.log(`[MULTI-ENTRY] userMessage: ${userMessage}`);
+      context.log(`DEBUG: Multi-entry - askedResp=${askedResponsibilities}, providedResp=${providedResponsibilities}, askedAddAnother=${askedAddAnother}`);
+
+      // Case 1: AI asked for responsibilities and user provided them
+      // Force the "add another?" question
+      if (askedResponsibilities && providedResponsibilities) {
+        const addAnotherQ = ADD_ANOTHER_QUESTIONS[actualSection];
+        if (addAnotherQ && !detectAskedAddAnother(cleanResponse, actualSection)) {
+          // Build response with summary + add another question
+          cleanResponse = `Great! I've recorded that information.\n\n${addAnotherQ}`;
+          followUpNeeded = true;
+          context.log(`Forced "add another?" question for ${actualSection}`);
+        }
+      }
+
+      // Case 2: AI asked "add another?" and user said YES
+      // Start collecting new entry
+      if (askedAddAnother && detectUserWantsAnother(userMessage)) {
+        const firstQ = FIRST_DETAIL_QUESTIONS[actualSection];
+        if (firstQ) {
+          cleanResponse = `Great! ${firstQ}`;
+          followUpNeeded = true;
+          context.log(`User wants another ${actualSection} entry`);
+        }
+      }
+
+      // Case 3: AI asked "add another?" and user said NO
+      // Move to next section
+      if (askedAddAnother && detectUserDoneWithEntries(userMessage)) {
+        const nextSectionMap: Partial<Record<QuestionCategory, QuestionCategory>> = {
+          work: 'education',
+          education: 'volunteering',
+          volunteering: 'skills',
+        };
+        const nextSection = nextSectionMap[actualSection];
+        if (nextSection && SECTION_TRANSITION_MESSAGES[actualSection]) {
+          suggestedSection = nextSection;
+          cleanResponse = SECTION_TRANSITION_MESSAGES[actualSection]!;
+          context.log(`User done with ${actualSection}, moving to ${nextSection}`);
+        }
+      }
+    }
+
+    // =========================================================================
+    // SMART FIELD SKIPPING - Skip redundant education questions
+    // When user provides "degree in field", skip the separate "field of study" question
+    // =========================================================================
+    if (actualSection === 'education') {
+      const lowerCleanResponse = cleanResponse.toLowerCase();
+
+      // Check if NEW AI response is asking about field of study
+      // Must have a question mark AND not be our own skip confirmation message
+      const isAskingFieldOfStudy = (lowerCleanResponse.includes('study') ||
+                                    lowerCleanResponse.includes('major') ||
+                                    lowerCleanResponse.includes('field')) &&
+                                   lowerCleanResponse.includes('?') &&
+                                   !lowerCleanResponse.includes('great, i have');
+
+      // Check BOTH currentResumeData AND extractedFields from THIS request
+      const educationData = currentResumeData.education as Array<{ fieldOfStudy?: string }> | undefined;
+      let existingFieldOfStudy = educationData?.[0]?.fieldOfStudy;
+
+      // Also check extractedFields (fields extracted in THIS request)
+      if (!existingFieldOfStudy) {
+        const fieldFromExtraction = extractedFields.find(f => f.path === 'education[0].fieldOfStudy');
+        if (fieldFromExtraction) {
+          existingFieldOfStudy = fieldFromExtraction.value as string;
+        }
+      }
+
+      if (isAskingFieldOfStudy && existingFieldOfStudy) {
+        // Field was already provided - skip to graduation year question
+        cleanResponse = `Great! What year did you graduate from your program? (Or are you still studying?)`;
+        context.log(`Skipped fieldOfStudy question - already extracted: ${existingFieldOfStudy}`);
       }
     }
 
@@ -447,7 +674,7 @@ DO NOT ask the yes/no question again - they already answered it.`;
       assistantMessage: cleanResponse,
       extractedFields: extractedFields,
       suggestedSection,
-      isComplete: extractedData?.isComplete || false,
+      isComplete: wantsToExport || extractedData?.isComplete || false,
       specialContent,
       followUpNeeded,
       confidence,
