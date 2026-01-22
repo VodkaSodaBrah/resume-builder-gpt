@@ -1,9 +1,4 @@
-/**
- * Resume Enhancement Endpoint (Vercel Serverless Function)
- * Handles AI-powered job description enhancement
- */
-
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { z } from 'zod';
 import {
   enhanceJobDescription,
@@ -11,7 +6,6 @@ import {
   suggestSkills,
   generateProfessionalSummary,
 } from '../lib/openai';
-import { securityCheck } from '../lib/vercel-security';
 
 const enhanceSchema = z.object({
   type: z.enum(['job_description', 'all_experiences', 'suggest_skills', 'professional_summary']),
@@ -19,31 +13,25 @@ const enhanceSchema = z.object({
   language: z.string().default('en'),
 });
 
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-): Promise<void> {
-  // Security check (handles CORS and origin validation)
-  if (securityCheck(req, res)) {
-    return;
-  }
-
-  // Only allow POST
-  if (req.method !== 'POST') {
-    res.status(405).json({ success: false, error: 'Method not allowed' });
-    return;
-  }
-
+export async function enhanceResume(
+  request: HttpRequest,
+  context: InvocationContext
+): Promise<HttpResponseInit> {
   try {
-    const body = req.body;
+    // No auth required - this is a public AI enhancement endpoint
+    // User authentication is handled by Clerk on the frontend
+
+    const body = await request.json();
     const validation = enhanceSchema.safeParse(body);
 
     if (!validation.success) {
-      res.status(400).json({
-        success: false,
-        error: validation.error.errors[0].message,
-      });
-      return;
+      return {
+        status: 400,
+        jsonBody: {
+          success: false,
+          error: validation.error.errors[0].message,
+        },
+      };
     }
 
     const { type, data, language } = validation.data;
@@ -81,19 +69,34 @@ export default async function handler(
       }
 
       default:
-        res.status(400).json({ success: false, error: 'Invalid enhancement type' });
-        return;
+        return {
+          status: 400,
+          jsonBody: { success: false, error: 'Invalid enhancement type' },
+        };
     }
 
-    res.status(200).json({
-      success: true,
-      result,
-    });
+    return {
+      status: 200,
+      jsonBody: {
+        success: true,
+        result,
+      },
+    };
   } catch (error) {
-    console.error('Enhance resume error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'An error occurred during enhancement',
-    });
+    context.error('Enhance resume error:', error);
+    return {
+      status: 500,
+      jsonBody: {
+        success: false,
+        error: 'An error occurred during enhancement',
+      },
+    };
   }
 }
+
+app.http('enhanceResume', {
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  route: 'resume/enhance',
+  handler: enhanceResume,
+});

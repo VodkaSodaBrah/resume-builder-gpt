@@ -1,7 +1,7 @@
 {
   "name": "resume-builder-api",
   "version": "1.0.0",
-  "description": "Azure Functions API for Resume Builder GPT",
+  "description": "Serverless API for Resume Builder GPT (Vercel + Azure Functions)",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -12,6 +12,7 @@
   "dependencies": {
     "@azure/data-tables": "^13.2.2",
     "@azure/storage-blob": "^12.17.0",
+    "@vercel/node": "^3.2.29",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "openai": "^4.52.0",

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -31,6 +31,30 @@ const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 // Check if we're in dev mode (localhost)
 const DEV_MODE = isDevMode();
+
+// Check if this is a widget embed (not direct URL access)
+const isWidgetEmbed = (): boolean => {
+  // Check if loaded in an iframe
+  if (window.self !== window.top) {
+    return true;
+  }
+  // Check for widget-specific query parameter
+  if (new URLSearchParams(window.location.search).has('widget')) {
+    return true;
+  }
+  return false;
+};
+
+// Target URL for redirects
+const REDIRECT_URL = 'https://childressdigital.com';
+
+// Allowed hostnames for direct access
+const ALLOWED_HOSTS = [
+  'localhost',
+  '127.0.0.1',
+  'childressdigital.com',
+  'www.childressdigital.com',
+];
 
 // Protected Route wrapper for development mode
 const DevProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -129,6 +153,23 @@ const ClerkLandingPage: React.FC = () => {
 
 // Landing Page Content (shared)
 const LandingPageContent: React.FC = () => {
+  useEffect(() => {
+    // In production, redirect direct visitors to the main website
+    // unless they're accessing via widget embed or from allowed hosts
+    if (!DEV_MODE && !isWidgetEmbed()) {
+      const hostname = window.location.hostname;
+      const isAllowedHost = ALLOWED_HOSTS.some(allowed =>
+        hostname === allowed || hostname.endsWith(`.${allowed}`)
+      );
+
+      if (!isAllowedHost) {
+        // Redirect to main website
+        window.location.href = REDIRECT_URL;
+        return;
+      }
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
       {/* Hero Section */}
