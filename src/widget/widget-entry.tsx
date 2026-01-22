@@ -53,15 +53,8 @@ const destroyWidget = (instance: WidgetInstance): void => {
   }
 };
 
-// Expose to window
-window.ResumeBuilderWidget = {
-  init: initWidget,
-  destroy: destroyWidget,
-  instances: [],
-};
-
-// Auto-init if data attribute present
-document.addEventListener('DOMContentLoaded', () => {
+// Auto-init function for data attribute elements
+const autoInit = () => {
   const autoInitElements = document.querySelectorAll('[data-resume-builder-widget]');
 
   autoInitElements.forEach((element) => {
@@ -93,6 +86,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initWidget(config);
   });
-});
+};
 
-export { initWidget, destroyWidget };
+// Expose to window
+const widgetAPI = {
+  init: initWidget,
+  destroy: destroyWidget,
+  instances: [] as WidgetInstance[],
+};
+
+// Assign to window immediately
+(window as any).ResumeBuilderWidget = widgetAPI;
+
+// Auto-init on DOMContentLoaded or immediately if already loaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', autoInit);
+} else {
+  // DOM already loaded, init immediately
+  autoInit();
+}
+
+// Export for ES module usage
+export { initWidget, destroyWidget, widgetAPI as default };
