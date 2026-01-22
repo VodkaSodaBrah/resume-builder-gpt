@@ -1,26 +1,28 @@
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { FloatingWidget, WidgetConfig } from './Widget';
+import { FloatingWidget, EmbeddedWidget, WidgetConfig } from './Widget';
 import '../index.css';
 
 // Global widget instance management
 interface WidgetInstance {
   root: Root;
-  container: HTMLDivElement;
+  container: HTMLElement;
   config: WidgetConfig;
+  mode: 'floating' | 'embedded';
 }
 
 declare global {
   interface Window {
     ResumeBuilderWidget: {
       init: (config?: WidgetConfig) => WidgetInstance;
+      initEmbedded: (container: HTMLElement, config?: WidgetConfig) => WidgetInstance;
       destroy: (instance: WidgetInstance) => void;
       instances: WidgetInstance[];
     };
   }
 }
 
-// Initialize widget
+// Initialize floating widget (appends to body)
 const initWidget = (config: WidgetConfig = {}): WidgetInstance => {
   // Create container
   const container = document.createElement('div');
@@ -36,7 +38,23 @@ const initWidget = (config: WidgetConfig = {}): WidgetInstance => {
     </React.StrictMode>
   );
 
-  const instance: WidgetInstance = { root, container, config };
+  const instance: WidgetInstance = { root, container, config, mode: 'floating' };
+  window.ResumeBuilderWidget.instances.push(instance);
+
+  return instance;
+};
+
+// Initialize embedded widget (renders into provided container)
+const initEmbedded = (container: HTMLElement, config: WidgetConfig = {}): WidgetInstance => {
+  // Create React root and render directly into the provided container
+  const root = createRoot(container);
+  root.render(
+    <React.StrictMode>
+      <EmbeddedWidget config={config} />
+    </React.StrictMode>
+  );
+
+  const instance: WidgetInstance = { root, container, config, mode: 'embedded' };
   window.ResumeBuilderWidget.instances.push(instance);
 
   return instance;
@@ -45,7 +63,11 @@ const initWidget = (config: WidgetConfig = {}): WidgetInstance => {
 // Destroy widget instance
 const destroyWidget = (instance: WidgetInstance): void => {
   instance.root.unmount();
-  instance.container.remove();
+
+  // Only remove container if it was created by us (floating mode)
+  if (instance.mode === 'floating') {
+    instance.container.remove();
+  }
 
   const index = window.ResumeBuilderWidget.instances.indexOf(instance);
   if (index > -1) {
@@ -76,6 +98,7 @@ const autoInit = () => {
     const apiUrl = element.getAttribute('data-api-url');
     const allowSignup = element.getAttribute('data-allow-signup');
     const defaultLanguage = element.getAttribute('data-default-language');
+    const mode = element.getAttribute('data-mode');
 
     if (primaryColor) config.primaryColor = primaryColor;
     if (companyName) config.companyName = companyName;
@@ -84,13 +107,21 @@ const autoInit = () => {
     if (allowSignup) config.allowSignup = allowSignup !== 'false';
     if (defaultLanguage) config.defaultLanguage = defaultLanguage;
 
-    initWidget(config);
+    // Check if embedded mode is requested
+    if (mode === 'embedded') {
+      // Render directly into the target element
+      initEmbedded(element as HTMLElement, config);
+    } else {
+      // Default: floating widget
+      initWidget(config);
+    }
   });
 };
 
 // Expose to window
 const widgetAPI = {
   init: initWidget,
+  initEmbedded: initEmbedded,
   destroy: destroyWidget,
   instances: [] as WidgetInstance[],
 };

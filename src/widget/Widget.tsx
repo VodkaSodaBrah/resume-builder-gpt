@@ -252,4 +252,15 @@ export const FloatingWidget: React.FC<{ config?: WidgetConfig }> = ({
   );
 };
 
+// Embedded widget - renders directly in container (not floating)
+export const EmbeddedWidget: React.FC<{ config?: WidgetConfig }> = ({
+  config = {},
+}) => {
+  return (
+    <div className="resume-builder-widget-embedded w-full h-full min-h-[500px]">
+      <WidgetWithClerk config={config} />
+    </div>
+  );
+};
+
 export default Widget;
