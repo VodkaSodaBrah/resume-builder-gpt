@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { authenticateRequest } from '../lib/auth';
-import { getResumesTable, ResumeEntity } from '../lib/storage';
-import { secureResponse, isValidUuid } from '../lib/security';
+import { authenticateRequest } from '../_lib/auth';
+import { getResumesTable, ResumeEntity } from '../_lib/storage';
+import { secureResponse, isValidUuid } from '../_lib/security';
 
 export async function listResumes(
   request: HttpRequest,

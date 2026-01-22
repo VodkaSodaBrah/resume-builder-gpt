@@ -1,8 +1,8 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticateRequest } from '../lib/auth';
-import { getResumesTable, ResumeEntity } from '../lib/storage';
+import { authenticateRequest } from '../_lib/auth';
+import { getResumesTable, ResumeEntity } from '../_lib/storage';
 
 const resumeDataSchema = z.object({
   personalInfo: z.object({

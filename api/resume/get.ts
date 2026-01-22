@@ -1,6 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { authenticateRequest } from '../lib/auth';
-import { getResumesTable, ResumeEntity } from '../lib/storage';
+import { authenticateRequest } from '../_lib/auth';
+import { getResumesTable, ResumeEntity } from '../_lib/storage';
 
 export async function getResume(
   request: HttpRequest,

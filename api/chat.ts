@@ -5,7 +5,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { z } from 'zod';
-import { getConversationCompletion, ConversationMessage } from './lib/openai';
+import { getConversationCompletion, ConversationMessage } from './_lib/openai';
 import {
   buildSystemPrompt,
   detectNoEmail,
@@ -39,9 +39,9 @@ import {
   detectAskedAddAnother,
   detectUserWantsAnother,
   detectUserDoneWithEntries,
-} from './lib/conversationAI';
-import { getInlineEmailGuide } from './lib/emailGuide';
-import { securityCheck } from './lib/vercel-security';
+} from './_lib/conversationAI';
+import { getInlineEmailGuide } from './_lib/emailGuide';
+import { securityCheck } from './_lib/vercel-security';
 
 // Request validation schema
 const chatRequestSchema = z.object({

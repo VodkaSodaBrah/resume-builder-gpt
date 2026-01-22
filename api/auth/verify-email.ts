@@ -1,6 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { z } from 'zod';
-import { verifyUserEmail, generateToken } from '../lib/auth';
+import { verifyUserEmail, generateToken } from '../_lib/auth';
 
 const verifySchema = z.object({
   token: z.string().min(1, 'Verification token is required'),

@@ -10,8 +10,8 @@ import {
   enhanceAllWorkExperiences,
   suggestSkills,
   generateProfessionalSummary,
-} from '../lib/openai';
-import { securityCheck } from '../lib/vercel-security';
+} from '../_lib/openai';
+import { securityCheck } from '../_lib/vercel-security';
 
 const enhanceSchema = z.object({
   type: z.enum(['job_description', 'all_experiences', 'suggest_skills', 'professional_summary']),

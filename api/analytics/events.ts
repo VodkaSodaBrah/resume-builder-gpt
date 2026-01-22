@@ -1,7 +1,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import { getAnalyticsTable, AnalyticsEntity } from '../lib/storage';
+import { getAnalyticsTable, AnalyticsEntity } from '../_lib/storage';
 
 const eventSchema = z.object({
   id: z.string(),

@@ -1,13 +1,13 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { z } from 'zod';
-import { getUserByEmail, comparePassword, generateToken, updateUser } from '../lib/auth';
+import { getUserByEmail, comparePassword, generateToken, updateUser } from '../_lib/auth';
 import {
   checkAuthRateLimit,
   getClientIdentifier,
   rateLimitResponse,
   secureResponse,
   logSecurityEvent,
-} from '../lib/security';
+} from '../_lib/security';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),

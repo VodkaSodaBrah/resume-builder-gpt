@@ -1,0 +1,26 @@
+# Ignore compiled dist folder
+api/dist/
+
+# Ignore Azure-specific functions (we use Vercel versions)
+api/chat-azure/
+api/**/*.azure.ts
+
+# Ignore tests
+api/tests/
+api/**/*.test.ts
+
+# Ignore TypeScript declaration files
+**/*.d.ts
+
+# Ignore source maps
+**/*.map
+
+# Ignore Azure Functions config
+api/host.json
+api/local.settings.json
+api/index.ts
+
+# Development files
+*.log
+.env.local
+.env.development.local
