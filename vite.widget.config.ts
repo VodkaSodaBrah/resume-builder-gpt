@@ -18,7 +18,8 @@ export default defineConfig({
     outDir: 'dist/widget',
     lib: {
       entry: path.resolve(__dirname, 'src/widget/widget-entry.tsx'),
-      name: 'ResumeBuilderWidget',
+      // Use internal name to avoid overwriting window.ResumeBuilderWidget set by widget code
+      name: '__ResumeBuilderWidgetModule',
       fileName: (format) => `resume-builder-widget.${format}.js`,
       formats: ['iife', 'es'],
     },
