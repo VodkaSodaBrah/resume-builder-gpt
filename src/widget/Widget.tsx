@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   ClerkProvider,
@@ -182,9 +183,11 @@ const WidgetWithClerk: React.FC<{ config: WidgetConfig }> = ({ config }) => {
   // When useParentAuth is true, skip ClerkProvider and use parent's auth context
   if (config.useParentAuth) {
     return (
-      <QueryClientProvider client={queryClient}>
-        <WidgetContent config={config} />
-      </QueryClientProvider>
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <WidgetContent config={config} />
+        </QueryClientProvider>
+      </MemoryRouter>
     );
   }
 
@@ -199,11 +202,13 @@ const WidgetWithClerk: React.FC<{ config: WidgetConfig }> = ({ config }) => {
   }
 
   return (
-    <ClerkProvider publishableKey={pubKey}>
-      <QueryClientProvider client={queryClient}>
-        <WidgetContent config={config} />
-      </QueryClientProvider>
-    </ClerkProvider>
+    <MemoryRouter>
+      <ClerkProvider publishableKey={pubKey}>
+        <QueryClientProvider client={queryClient}>
+          <WidgetContent config={config} />
+        </QueryClientProvider>
+      </ClerkProvider>
+    </MemoryRouter>
   );
 };
 
