@@ -28,6 +28,7 @@ export interface WidgetConfig {
   onComplete?: (resumeData: unknown) => void;
   onClose?: () => void;
   clerkPublishableKey?: string; // Allow override for embedded use
+  useParentAuth?: boolean; // Skip ClerkProvider, use parent's auth context
 }
 
 interface WidgetProps {
@@ -178,6 +179,15 @@ const WidgetContent: React.FC<{ config: WidgetConfig }> = ({ config }) => {
 };
 
 const WidgetWithClerk: React.FC<{ config: WidgetConfig }> = ({ config }) => {
+  // When useParentAuth is true, skip ClerkProvider and use parent's auth context
+  if (config.useParentAuth) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <WidgetContent config={config} />
+      </QueryClientProvider>
+    );
+  }
+
   const pubKey = config.clerkPublishableKey || clerkPubKey;
 
   if (!pubKey) {

@@ -99,6 +99,7 @@ const autoInit = () => {
     const allowSignup = element.getAttribute('data-allow-signup');
     const defaultLanguage = element.getAttribute('data-default-language');
     const mode = element.getAttribute('data-mode');
+    const useParentAuth = element.getAttribute('data-use-parent-auth');
 
     if (primaryColor) config.primaryColor = primaryColor;
     if (companyName) config.companyName = companyName;
@@ -106,6 +107,7 @@ const autoInit = () => {
     if (apiUrl) config.apiUrl = apiUrl;
     if (allowSignup) config.allowSignup = allowSignup !== 'false';
     if (defaultLanguage) config.defaultLanguage = defaultLanguage;
+    if (useParentAuth) config.useParentAuth = useParentAuth === 'true';
 
     // Check if embedded mode is requested
     if (mode === 'embedded') {
