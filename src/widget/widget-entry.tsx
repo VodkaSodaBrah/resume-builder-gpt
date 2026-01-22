@@ -106,5 +106,5 @@ if (document.readyState === 'loading') {
   autoInit();
 }
 
-// Export for ES module usage
-export { initWidget, destroyWidget, widgetAPI as default };
+// No exports - IIFE should not return anything to avoid overwriting window.ResumeBuilderWidget
+// The widget is accessed via window.ResumeBuilderWidget which is set above
