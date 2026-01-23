@@ -82,7 +82,7 @@ const WidgetContent: React.FC<{ config: WidgetConfig }> = ({ config }) => {
 
   if (!isLoaded) {
     return (
-      <div className="widget-container bg-[#0a0a0a] border border-[#27272a] rounded-xl shadow-2xl overflow-hidden flex items-center justify-center h-96">
+      <div className="widget-container h-full bg-[#0a0a0a] border border-[#27272a] rounded-xl shadow-2xl overflow-hidden flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -90,7 +90,7 @@ const WidgetContent: React.FC<{ config: WidgetConfig }> = ({ config }) => {
 
   return (
     <div
-      className={`widget-container bg-[#0a0a0a] border border-[#27272a] rounded-xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${
+      className={`widget-container h-full bg-[#0a0a0a] border border-[#27272a] rounded-xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${
         isExpanded ? 'widget-expanded' : 'widget-compact'
       }`}
       style={{
