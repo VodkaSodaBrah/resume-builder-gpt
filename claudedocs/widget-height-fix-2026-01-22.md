@@ -83,3 +83,57 @@ fix: widget container now fills parent height in embedded mode
 Add h-full class to widget-container div to ensure proper height
 inheritance when embedded. Removes fixed h-96 from loading state.
 ```
+
+---
+
+# Auto-Scroll Fix - 2026-01-22 (Follow-up)
+
+## Problem
+
+After the height fix, clicking inside the widget caused the parent page to auto-scroll to the bottom. Every interaction scrolled the entire page, not just the chat messages area.
+
+## Root Cause
+
+Two scroll-triggering behaviors:
+
+1. **ChatContainer.tsx line 109**: `scrollIntoView({ behavior: 'smooth' })` - scrolls ALL ancestors by default
+2. **ChatInput.tsx lines 32-34**: `focus()` calls on input elements can scroll the page to ensure the focused element is visible
+
+## Solution
+
+### `/src/components/chat/ChatContainer.tsx`
+```tsx
+// Before:
+messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+
+// After:
+messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+```
+
+The `block: 'nearest'` option tells the browser to scroll just enough to bring the element into view, without scrolling parent containers unnecessarily.
+
+### `/src/components/chat/ChatInput.tsx`
+```tsx
+// Before:
+textareaRef.current?.focus();
+inputRef.current?.focus();
+
+// After:
+textareaRef.current?.focus({ preventScroll: true });
+inputRef.current?.focus({ preventScroll: true });
+```
+
+The `preventScroll: true` option prevents the browser from scrolling to bring the focused element into view.
+
+## Deployment
+
+1. Committed to resume_builderGPT repo: `9969888`
+2. Pushed to origin/main - Vercel auto-deploys
+3. Bumped version in childress-digital from v7 to v8
+
+## Version History
+
+- v5: Initial embedded widget support
+- v6: Container height CSS rules
+- v7: h-full class for height inheritance
+- v8: Prevent parent page scroll on focus/message updates
