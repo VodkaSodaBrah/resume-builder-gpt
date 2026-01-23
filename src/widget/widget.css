@@ -11,7 +11,7 @@
   box-sizing: border-box;
 }
 
-/* Widget container sizes */
+/* Widget container sizes - default for floating mode */
 .widget-container {
   width: 380px;
   height: 580px;
@@ -25,6 +25,18 @@
 .widget-container.widget-expanded {
   width: 480px;
   height: 720px;
+}
+
+/* Embedded mode - fill the container */
+.resume-builder-widget-embedded .widget-container,
+.resume-builder-widget-embedded .widget-container.widget-compact,
+.resume-builder-widget-embedded .widget-container.widget-expanded {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* Mobile responsive */

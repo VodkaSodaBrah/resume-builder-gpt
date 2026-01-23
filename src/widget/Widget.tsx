@@ -272,7 +272,7 @@ export const EmbeddedWidget: React.FC<{ config?: WidgetConfig }> = ({
   config = {},
 }) => {
   return (
-    <div className="resume-builder-widget-embedded w-full h-full min-h-[500px]">
+    <div className="resume-builder-widget-embedded" style={{ width: '100%', height: '100%', minHeight: 'inherit' }}>
       <WidgetWithClerk config={config} />
     </div>
   );
