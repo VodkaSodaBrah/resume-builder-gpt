@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ChatMessage, ConversationState, ResumeData, QuestionCategory } from '@/types';
-import { questions } from '@/lib/questions';
+import { questions, getSectionKeyForQuestion } from '@/lib/questions';
+import { formatFieldValue } from '@/lib/formatters';
 
 interface ConversationStore extends ConversationState {
   // Actions
@@ -114,7 +115,22 @@ export const useConversationStore = create<ConversationStore>()(
       shouldSkipCurrentQuestion: () => {
         const question = get().getCurrentQuestion();
         if (!question || !question.skipCondition) return false;
-        return question.skipCondition(get().resumeData as Partial<ResumeData>);
+
+        // Calculate the correct entry index based on section counters
+        const sectionKey = getSectionKeyForQuestion(question.id);
+        let entryIndex = 0;
+
+        if (sectionKey) {
+          const counts: Record<string, number> = {
+            'work': get().workExperienceCount,
+            'education': get().educationCount,
+            'volunteering': get().volunteeringCount,
+            'references': get().referenceCount,
+          };
+          entryIndex = counts[sectionKey] || 0;
+        }
+
+        return question.skipCondition(get().resumeData as Partial<ResumeData>, entryIndex);
       },
 
       nextQuestion: () => {
@@ -124,8 +140,26 @@ export const useConversationStore = create<ConversationStore>()(
         // Skip questions based on conditions
         while (nextIndex < questions.length) {
           const question = questions[nextIndex];
-          if (question.skipCondition && question.skipCondition(get().resumeData as Partial<ResumeData>)) {
-            nextIndex++;
+          if (question.skipCondition) {
+            // Calculate the correct entry index for this question
+            const sectionKey = getSectionKeyForQuestion(question.id);
+            let entryIndex = 0;
+
+            if (sectionKey) {
+              const counts: Record<string, number> = {
+                'work': get().workExperienceCount,
+                'education': get().educationCount,
+                'volunteering': get().volunteeringCount,
+                'references': get().referenceCount,
+              };
+              entryIndex = counts[sectionKey] || 0;
+            }
+
+            if (question.skipCondition(get().resumeData as Partial<ResumeData>, entryIndex)) {
+              nextIndex++;
+            } else {
+              break;
+            }
           } else {
             break;
           }
@@ -150,8 +184,26 @@ export const useConversationStore = create<ConversationStore>()(
           // Skip questions that should be skipped going backwards too
           while (prevIndex > 0) {
             const question = questions[prevIndex];
-            if (question.skipCondition && question.skipCondition(get().resumeData as Partial<ResumeData>)) {
-              prevIndex--;
+            if (question.skipCondition) {
+              // Calculate the correct entry index for this question
+              const sectionKey = getSectionKeyForQuestion(question.id);
+              let entryIndex = 0;
+
+              if (sectionKey) {
+                const counts: Record<string, number> = {
+                  'work': get().workExperienceCount,
+                  'education': get().educationCount,
+                  'volunteering': get().volunteeringCount,
+                  'references': get().referenceCount,
+                };
+                entryIndex = counts[sectionKey] || 0;
+              }
+
+              if (question.skipCondition(get().resumeData as Partial<ResumeData>, entryIndex)) {
+                prevIndex--;
+              } else {
+                break;
+              }
             } else {
               break;
             }
@@ -176,11 +228,14 @@ export const useConversationStore = create<ConversationStore>()(
       },
 
       updateResumeData: (path, value) => {
+        // Apply comprehensive formatting based on field path
+        const formattedValue = formatFieldValue(path, value);
+
         set((state) => ({
           resumeData: setNestedValue(
             state.resumeData as Record<string, unknown>,
             path,
-            value
+            formattedValue
           ) as Partial<ResumeData>,
         }));
       },

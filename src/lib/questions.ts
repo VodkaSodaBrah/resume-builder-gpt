@@ -139,11 +139,11 @@ export const questions: Question[] = [
     isRequired: true,
     inputType: 'text',
     placeholder: 'e.g., December 2023 or 12/2023',
-    // Check the most recent/last work experience entry for isCurrentJob
-    skipCondition: (data) => {
+    // Check the current work experience entry for isCurrentJob
+    skipCondition: (data, entryIndex = 0) => {
       if (data.hasWorkExperience === false) return true;
-      const lastEntry = data.workExperience?.[data.workExperience.length - 1];
-      return lastEntry?.isCurrentJob === true;
+      const currentEntry = data.workExperience?.[entryIndex];
+      return currentEntry?.isCurrentJob === true;
     },
   },
   {
@@ -219,10 +219,10 @@ export const questions: Question[] = [
     isRequired: true,
     inputType: 'text',
     placeholder: 'e.g., 2024',
-    // Check the most recent/last education entry for isCurrentlyStudying
-    skipCondition: (data) => {
-      const lastEntry = data.education?.[data.education.length - 1];
-      return lastEntry?.isCurrentlyStudying === true;
+    // Check the current education entry for isCurrentlyStudying
+    skipCondition: (data, entryIndex = 0) => {
+      const currentEntry = data.education?.[entryIndex];
+      return currentEntry?.isCurrentlyStudying === true;
     },
   },
   {

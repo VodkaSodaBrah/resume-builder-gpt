@@ -140,7 +140,7 @@ export interface Question {
     maxLength?: number;
   };
   followUp?: string[];
-  skipCondition?: (data: Partial<ResumeData>) => boolean;
+  skipCondition?: (data: Partial<ResumeData>, entryIndex?: number) => boolean;
 }
 
 export interface ConversationState {

@@ -14,7 +14,7 @@ import type {
   AIConversationState,
   ChatResponse,
 } from '@/types';
-import { formatPhoneNumber, formatCityState } from '@/lib/formatters';
+import { formatPhoneNumber, formatCityState, formatFieldValue } from '@/lib/formatters';
 
 // Generate unique IDs
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -305,13 +305,8 @@ export const useAIConversationStore = create<AIConversationStore>()(
 
           // Apply regular high-confidence fields
           for (const field of highConfidenceFields) {
-            // Apply formatting for phone and city fields
-            let formattedValue = field.value;
-            if (field.path === 'personalInfo.phone' && typeof field.value === 'string') {
-              formattedValue = formatPhoneNumber(field.value);
-            } else if (field.path === 'personalInfo.city' && typeof field.value === 'string') {
-              formattedValue = formatCityState(field.value);
-            }
+            // Apply comprehensive formatting based on field path
+            const formattedValue = formatFieldValue(field.path, field.value);
 
             updatedData = setNestedValue(updatedData, field.path, formattedValue);
 

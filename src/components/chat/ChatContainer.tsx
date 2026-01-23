@@ -5,6 +5,7 @@ import { ChatInput } from './ChatInput';
 import { InlinePreviewCard } from './InlinePreviewCard';
 import { ExportOptionsCard } from './ExportOptionsCard';
 import { GmailGuideCard } from './GmailGuideCard';
+import { LivePreviewPanel } from './LivePreviewPanel';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { SectionProgressBar, getSectionIntroMessage, getSectionCompletionMessage } from '@/components/ui/SectionProgressBar';
 import { useConversationStore } from '@/stores/conversationStore';
@@ -29,6 +30,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
   const navigate = useNavigate();
   // Track fields that were extracted from combined answers (to skip their questions)
   const [extractedFieldsToSkip, setExtractedFieldsToSkip] = useState<string[]>([]);
+  // Live preview panel state
+  const [showPreview, setShowPreview] = useState(false);
 
   const {
     messages,
@@ -542,21 +545,64 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
     handleSubmit('');
   }, [currentQuestion, trackEvent, handleSubmit]);
 
+  // Check if personal info is complete to enable preview
+  const hasPersonalInfo = resumeData.personalInfo?.fullName && resumeData.personalInfo?.email;
+  const canShowPreview = hasPersonalInfo && !isWidget; // Don't show in widget mode
+
   return (
-    <div className={`flex flex-col h-full bg-[#0a0a0a] ${isWidget ? 'rounded-xl overflow-hidden' : ''}`}>
-      {/* Header with progress */}
-      <div className="flex-shrink-0 p-4 border-b border-[#27272a] bg-[#111111]">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h2 className="text-lg font-semibold text-white">Resume Builder</h2>
-            <p className="text-sm text-[#71717a]">{getTranslatedCategoryLabel(currentCategory)}</p>
-          </div>
-          {isWidget && (
-            <div className="text-xs text-[#71717a]">
-              Powered by Childress Digital
+    <div className={`flex h-full bg-[#0a0a0a] ${isWidget ? 'rounded-xl overflow-hidden' : ''}`}>
+      {/* Main Chat Container */}
+      <div className="flex flex-col flex-1 min-w-0">
+        {/* Header with progress */}
+        <div className="flex-shrink-0 p-4 border-b border-[#27272a] bg-[#111111]">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Resume Builder</h2>
+              <p className="text-sm text-[#71717a]">{getTranslatedCategoryLabel(currentCategory)}</p>
             </div>
-          )}
-        </div>
+            <div className="flex items-center gap-3">
+              {/* Preview Toggle Button */}
+              {canShowPreview && (
+                <button
+                  onClick={() => setShowPreview(!showPreview)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    showPreview
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
+                      : 'bg-[#1a1a1a] text-[#a1a1aa] hover:bg-[#27272a]'
+                  }`}
+                  title={showPreview ? 'Hide Preview' : 'Show Preview'}
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                    />
+                  </svg>
+                  <span className="hidden sm:inline">
+                    {showPreview ? 'Hide Preview' : 'Preview'}
+                  </span>
+                </button>
+              )}
+              {isWidget && (
+                <div className="text-xs text-[#71717a]">
+                  Powered by Childress Digital
+                </div>
+              )}
+            </div>
+          </div>
         {/* Section-based progress indicator */}
         <SectionProgressBar currentCategory={currentCategory} />
         {/* Detailed step progress */}
@@ -612,15 +658,35 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <ChatInput
-        question={currentQuestion}
-        onSubmit={handleSubmit}
-        onBack={currentQuestionIndex > 0 ? handleBack : undefined}
-        onSkip={currentQuestion && !currentQuestion.isRequired ? handleSkip : undefined}
-        disabled={isTyping}
-        canGoBack={currentQuestionIndex > 0}
-      />
+        {/* Input */}
+        <ChatInput
+          question={currentQuestion}
+          onSubmit={handleSubmit}
+          onBack={currentQuestionIndex > 0 ? handleBack : undefined}
+          onSkip={currentQuestion && !currentQuestion.isRequired ? handleSkip : undefined}
+          disabled={isTyping}
+          canGoBack={currentQuestionIndex > 0}
+        />
+      </div>
+
+      {/* Live Preview Panel */}
+      {canShowPreview && (
+        <div
+          className={`${
+            showPreview
+              ? 'w-full md:w-[40%] lg:w-[35%] xl:w-[30%]'
+              : 'hidden'
+          } transition-all duration-300`}
+        >
+          <LivePreviewPanel
+            resumeData={resumeData}
+            onTemplateChange={(template) => {
+              updateResumeData('templateStyle', template);
+            }}
+            isVisible={showPreview}
+          />
+        </div>
+      )}
     </div>
   );
 };
