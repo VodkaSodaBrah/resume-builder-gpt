@@ -105,8 +105,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
   }, [t]);
 
   // Scroll to bottom when new messages arrive
+  // Use block: 'nearest' to prevent scrolling the parent page in embedded mode
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages, isTyping]);
 
   // Initialize conversation with first question

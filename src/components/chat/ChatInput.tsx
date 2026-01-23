@@ -28,10 +28,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   useEffect(() => {
     // Focus on input when question changes
+    // Use preventScroll to avoid scrolling the parent page in embedded mode
     if (question?.inputType === 'textarea') {
-      textareaRef.current?.focus();
+      textareaRef.current?.focus({ preventScroll: true });
     } else {
-      inputRef.current?.focus();
+      inputRef.current?.focus({ preventScroll: true });
     }
     setValue('');
   }, [question?.id]);
