@@ -288,6 +288,8 @@ export const useConversationStore = create<ConversationStore>()(
     }),
     {
       name: 'resume-builder-conversation',
+      version: 1,
+      migrate: () => ({}),
       partialize: (state) => ({
         currentQuestionIndex: state.currentQuestionIndex,
         currentCategory: state.currentCategory,

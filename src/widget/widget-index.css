@@ -1,0 +1,9 @@
+/* Widget CSS entry - Tailwind utilities only, NO preflight */
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities" layer(utilities);
+
+/* Widget isolation and layout styles */
+@import "./widget.css";
+
+/* Component styles scoped to widget root */
+@import "./widget-components.css";

@@ -548,6 +548,8 @@ export const useAIConversationStore = create<AIConversationStore>()(
     }),
     {
       name: 'resume-builder-ai-conversation',
+      version: 1,
+      migrate: () => ({}),
       partialize: (state) => ({
         currentCategory: state.currentCategory,
         messages: state.messages,

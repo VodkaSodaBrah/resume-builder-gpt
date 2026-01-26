@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { FloatingWidget, EmbeddedWidget, WidgetConfig } from './Widget';
-import '../index.css';
+import './widget-index.css';
 
 // Global widget instance management
 interface WidgetInstance {
