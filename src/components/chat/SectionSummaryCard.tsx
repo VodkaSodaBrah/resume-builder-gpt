@@ -129,11 +129,12 @@ function renderSkills(data: Partial<ResumeData>) {
   if (!skills) return <p className="text-[#71717a] text-sm">No skills added.</p>;
 
   // Languages may be an array of {language, proficiency} objects or a raw string
+  const rawLanguages: unknown = skills.languages;
   let languageItems: string[] = [];
-  if (Array.isArray(skills.languages)) {
-    languageItems = skills.languages.map(l => `${l.language} (${l.proficiency})`);
-  } else if (typeof skills.languages === 'string' && skills.languages.trim()) {
-    languageItems = (skills.languages as string).split(',').map(s => s.trim()).filter(Boolean);
+  if (Array.isArray(rawLanguages)) {
+    languageItems = rawLanguages.map((l: any) => `${l.language} (${l.proficiency})`);
+  } else if (typeof rawLanguages === 'string' && rawLanguages.trim()) {
+    languageItems = rawLanguages.split(',').map(s => s.trim()).filter(Boolean);
   }
 
   const sections = [
