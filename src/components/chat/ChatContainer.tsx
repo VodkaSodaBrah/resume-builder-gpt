@@ -215,8 +215,20 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
 
     if (currentQuestion.inputType === 'confirm') {
       processedValue = value.toLowerCase() === 'yes';
-    } else if (currentQuestion.field.includes('Skills') && currentQuestion.inputType === 'textarea') {
-      // Split skills by comma
+    } else if (currentQuestion.field === 'skills.languages') {
+      // Parse "English (native), Spanish (conversational)" into [{language, proficiency}]
+      processedValue = value.split(',').map((s) => s.trim()).filter(Boolean).map((entry) => {
+        const match = entry.match(/^(.+?)\s*\((.+?)\)\s*$/);
+        if (match) {
+          return { language: match[1].trim(), proficiency: match[2].trim() };
+        }
+        return { language: entry.trim(), proficiency: 'conversational' };
+      });
+    } else if (
+      currentQuestion.field.startsWith('skills.') &&
+      (currentQuestion.inputType === 'textarea' || currentQuestion.inputType === 'text')
+    ) {
+      // Split comma-separated skills/certifications into arrays
       processedValue = value.split(',').map((s) => s.trim()).filter(Boolean);
     }
 
@@ -482,8 +494,29 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
       // Skip questions if needed (including those whose fields were already extracted)
       while (nextQ) {
         const shouldSkipViaCondition = store.shouldSkipCurrentQuestion();
+
+        // Transform the field path to the correct entry index before checking
+        // so that multi-entry sections don't skip based on stale data at index 0
+        let fieldPathForSkipCheck = nextQ.field;
+        const storeState = store;
+        const skipSectionCounts: Record<string, number> = {
+          'work': storeState.workExperienceCount,
+          'education': storeState.educationCount,
+          'volunteering': storeState.volunteeringCount,
+          'references': storeState.referenceCount,
+        };
+        if (fieldPathForSkipCheck.includes('workExperience[')) {
+          fieldPathForSkipCheck = transformFieldPath(fieldPathForSkipCheck, 'work', skipSectionCounts['work']);
+        } else if (fieldPathForSkipCheck.includes('education[')) {
+          fieldPathForSkipCheck = transformFieldPath(fieldPathForSkipCheck, 'education', skipSectionCounts['education']);
+        } else if (fieldPathForSkipCheck.includes('volunteering[')) {
+          fieldPathForSkipCheck = transformFieldPath(fieldPathForSkipCheck, 'volunteering', skipSectionCounts['volunteering']);
+        } else if (fieldPathForSkipCheck.includes('references[')) {
+          fieldPathForSkipCheck = transformFieldPath(fieldPathForSkipCheck, 'references', skipSectionCounts['references']);
+        }
+
         const shouldSkipViaExtraction = shouldSkipQuestion(
-          nextQ.field,
+          fieldPathForSkipCheck,
           extractedFieldsToSkip.concat(parsedAnswer.fieldsToSkip),
           store.resumeData as Record<string, unknown>
         );

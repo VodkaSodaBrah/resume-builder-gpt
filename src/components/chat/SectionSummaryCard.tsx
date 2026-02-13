@@ -118,16 +118,30 @@ function renderVolunteering(data: Partial<ResumeData>) {
   );
 }
 
+function normalizeToArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === 'string' && value.trim()) return value.split(',').map(s => s.trim()).filter(Boolean);
+  return [];
+}
+
 function renderSkills(data: Partial<ResumeData>) {
   const skills = data.skills;
   if (!skills) return <p className="text-[#71717a] text-sm">No skills added.</p>;
 
+  // Languages may be an array of {language, proficiency} objects or a raw string
+  let languageItems: string[] = [];
+  if (Array.isArray(skills.languages)) {
+    languageItems = skills.languages.map(l => `${l.language} (${l.proficiency})`);
+  } else if (typeof skills.languages === 'string' && skills.languages.trim()) {
+    languageItems = (skills.languages as string).split(',').map(s => s.trim()).filter(Boolean);
+  }
+
   const sections = [
-    { label: 'Technical', items: skills.technicalSkills },
-    { label: 'Certifications', items: skills.certifications },
-    { label: 'Languages', items: skills.languages?.map(l => `${l.language} (${l.proficiency})`) },
-    { label: 'Soft Skills', items: skills.softSkills },
-  ].filter(s => s.items?.length);
+    { label: 'Technical', items: normalizeToArray(skills.technicalSkills) },
+    { label: 'Certifications', items: normalizeToArray(skills.certifications) },
+    { label: 'Languages', items: languageItems },
+    { label: 'Soft Skills', items: normalizeToArray(skills.softSkills) },
+  ].filter(s => s.items.length > 0);
 
   if (!sections.length) return <p className="text-[#71717a] text-sm">No skills added.</p>;
 
@@ -136,7 +150,7 @@ function renderSkills(data: Partial<ResumeData>) {
       {sections.map(s => (
         <div key={s.label}>
           <p className="text-[#71717a] text-xs font-medium">{s.label}:</p>
-          <p className="text-white text-sm">{s.items!.join(', ')}</p>
+          <p className="text-white text-sm">{s.items.join(', ')}</p>
         </div>
       ))}
     </div>
