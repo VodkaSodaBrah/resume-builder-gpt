@@ -4,7 +4,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { formatPhoneNumber, formatCityState } from '../src/lib/formatters';
+import {
+  formatPhoneNumber,
+  formatCityState,
+  cleanBulletText,
+  formatDate,
+  formatFieldValue,
+} from '../src/lib/formatters';
 
 describe('formatPhoneNumber', () => {
   describe('10-digit US numbers', () => {
@@ -206,5 +212,125 @@ describe('formatCityState', () => {
     it('handles city names with special characters', () => {
       expect(formatCityState("st. louis missouri")).toBe('St. Louis, MO');
     });
+  });
+});
+
+// ============================================================================
+// cleanBulletText Tests
+// ============================================================================
+
+describe('cleanBulletText', () => {
+  it('strips bullet character from single line', () => {
+    expect(cleanBulletText('• Managed a team of 5')).toBe('Managed a team of 5');
+  });
+
+  it('strips dash prefix from single line', () => {
+    expect(cleanBulletText('- Led daily standups')).toBe('Led daily standups');
+  });
+
+  it('strips asterisk prefix from single line', () => {
+    expect(cleanBulletText('* Implemented new features')).toBe('Implemented new features');
+  });
+
+  it('handles multi-line bullet text', () => {
+    const input = '• Line one\n• Line two\n• Line three';
+    expect(cleanBulletText(input)).toBe('Line one\nLine two\nLine three');
+  });
+
+  it('handles mixed bullet prefixes', () => {
+    const input = '• First item\n- Second item\n* Third item';
+    expect(cleanBulletText(input)).toBe('First item\nSecond item\nThird item');
+  });
+
+  it('preserves text without bullet prefixes', () => {
+    expect(cleanBulletText('Just plain text')).toBe('Just plain text');
+  });
+
+  it('handles leading whitespace before bullet character', () => {
+    expect(cleanBulletText('  • Indented bullet')).toBe('Indented bullet');
+  });
+
+  it('filters out empty lines', () => {
+    const input = '• Line one\n\n• Line two';
+    expect(cleanBulletText(input)).toBe('Line one\nLine two');
+  });
+
+  it('returns empty string for empty input', () => {
+    expect(cleanBulletText('')).toBe('');
+  });
+
+  it('handles null/undefined gracefully', () => {
+    expect(cleanBulletText(null as unknown as string)).toBe('');
+    expect(cleanBulletText(undefined as unknown as string)).toBe('');
+  });
+});
+
+// ============================================================================
+// formatDate Tests
+// ============================================================================
+
+describe('formatDate', () => {
+  it('capitalizes lowercase month name', () => {
+    expect(formatDate('may 2023')).toBe('May 2023');
+  });
+
+  it('capitalizes "january 2020"', () => {
+    expect(formatDate('january 2020')).toBe('January 2020');
+  });
+
+  it('passes through already capitalized date', () => {
+    expect(formatDate('May 2023')).toBe('May 2023');
+  });
+
+  it('passes through year-only input', () => {
+    expect(formatDate('2022')).toBe('2022');
+  });
+
+  it('trims whitespace', () => {
+    expect(formatDate('  may 2023  ')).toBe('May 2023');
+  });
+
+  it('handles empty string', () => {
+    expect(formatDate('')).toBe('');
+  });
+
+  it('handles null/undefined gracefully', () => {
+    expect(formatDate(null as unknown as string)).toBe('');
+    expect(formatDate(undefined as unknown as string)).toBe('');
+  });
+
+  it('capitalizes "december 2025"', () => {
+    expect(formatDate('december 2025')).toBe('December 2025');
+  });
+});
+
+// ============================================================================
+// formatFieldValue routing for new formatters
+// ============================================================================
+
+describe('formatFieldValue routing', () => {
+  it('applies cleanBulletText for responsibilities path', () => {
+    const result = formatFieldValue('workExperience[0].responsibilities', '• Built APIs\n• Led team');
+    expect(result).toBe('Built APIs\nLed team');
+  });
+
+  it('applies formatDate for startDate path', () => {
+    const result = formatFieldValue('workExperience[0].startDate', 'may 2023');
+    expect(result).toBe('May 2023');
+  });
+
+  it('applies formatDate for endDate path', () => {
+    const result = formatFieldValue('workExperience[0].endDate', 'december 2024');
+    expect(result).toBe('December 2024');
+  });
+
+  it('applies formatDate for volunteering startDate', () => {
+    const result = formatFieldValue('volunteering[0].startDate', 'june 2021');
+    expect(result).toBe('June 2021');
+  });
+
+  it('applies cleanBulletText for volunteering responsibilities', () => {
+    const result = formatFieldValue('volunteering[0].responsibilities', '- Organized events');
+    expect(result).toBe('Organized events');
   });
 });

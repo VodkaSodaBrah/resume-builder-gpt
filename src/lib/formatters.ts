@@ -407,6 +407,34 @@ export function formatSkill(skill: string): string {
 }
 
 /**
+ * Strip bullet characters (-, *, bullet) from the start of each line.
+ * Used for responsibilities fields where pasted AI-generated bullets
+ * would otherwise create double markers in renderers.
+ */
+export function cleanBulletText(value: string): string {
+  if (!value || typeof value !== 'string') return '';
+
+  return value
+    .split('\n')
+    .map(line => line.replace(/^[\s]*[-\u2022*]\s*/, '').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * Capitalize the first letter of a date string.
+ * "may 2023" -> "May 2023", "2022" -> "2022"
+ */
+export function formatDate(value: string): string {
+  if (!value || typeof value !== 'string') return '';
+
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  return trimmed.replace(/^[a-z]/, c => c.toUpperCase());
+}
+
+/**
  * Format a school name with proper casing
  */
 export function formatSchool(school: string): string {
@@ -423,6 +451,16 @@ export function formatSchool(school: string): string {
  */
 export function getFormatterForField(fieldPath: string): ((value: string) => string) | null {
   const path = fieldPath.toLowerCase();
+
+  // Responsibilities fields (must be checked before name/title)
+  if (path.includes('responsibilities')) {
+    return cleanBulletText;
+  }
+
+  // Date fields (startDate, endDate)
+  if (path.includes('startdate') || path.includes('enddate')) {
+    return formatDate;
+  }
 
   // Name fields
   if (path.includes('fullname') || (path.includes('name') && !path.includes('company') && !path.includes('organization') && !path.includes('school'))) {

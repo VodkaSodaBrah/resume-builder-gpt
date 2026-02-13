@@ -1,0 +1,69 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - button "Back to Dashboard" [ref=e7]:
+        - img [ref=e8]
+        - text: Back to Dashboard
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - generic [ref=e12]: <
+          - generic [ref=e13]: Resume Builder
+          - generic [ref=e14]: />
+        - 'button "DEV: Fill Test Data" [ref=e15]'
+  - main [ref=e16]:
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e22]:
+          - heading "Resume Builder" [level=2] [ref=e23]
+          - paragraph [ref=e24]: Language
+        - generic [ref=e26]:
+          - generic [ref=e27]:
+            - generic [ref=e28]: 👤
+            - generic [ref=e29]: Personal
+          - generic [ref=e30]:
+            - generic [ref=e31]: 💼
+            - generic [ref=e32]: Work
+          - generic [ref=e33]:
+            - generic [ref=e34]: 🎓
+            - generic [ref=e35]: Education
+          - generic [ref=e36]:
+            - generic [ref=e37]: 🤝
+            - generic [ref=e38]: Volunteer
+          - generic [ref=e39]:
+            - generic [ref=e40]: ⭐
+            - generic [ref=e41]: Skills
+          - generic [ref=e42]:
+            - generic [ref=e43]: 📋
+            - generic [ref=e44]: References
+          - generic [ref=e45]:
+            - generic [ref=e46]: ✨
+            - generic [ref=e47]: Review
+        - generic [ref=e49]:
+          - generic [ref=e50]: Question 1 of 48
+          - generic [ref=e51]: 2%
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - img [ref=e55]
+          - generic [ref=e58]:
+            - paragraph [ref=e59]: Welcome! A resume is a document that tells employers about you -- your work experience, education, and skills. It's one of the most important tools for getting a job.
+            - paragraph [ref=e60]: 02:02 PM
+        - generic [ref=e61]:
+          - img [ref=e63]
+          - generic [ref=e66]:
+            - paragraph [ref=e67]: I'm going to help you build one step by step. I'll ask you simple questions, and together we'll create a professional resume. Don't worry if you've never done this before -- I'll guide you through every part!
+            - paragraph [ref=e68]: 02:02 PM
+      - generic [ref=e70]:
+        - button "1. English (English)" [ref=e71]
+        - button "2. Espanol (Spanish)" [ref=e72]
+        - button "3. Francais (French)" [ref=e73]
+        - button "4. Deutsch (German)" [ref=e74]
+        - button "5. Portugues (Portuguese)" [ref=e75]
+        - button "6. 中文 (Chinese)" [ref=e76]
+        - button "7. 日本語 (Japanese)" [ref=e77]
+        - button "8. 한국어 (Korean)" [ref=e78]
+        - button "9. العربية (Arabic)" [ref=e79]
+        - button "10. हिन्दी (Hindi)" [ref=e80]
+```

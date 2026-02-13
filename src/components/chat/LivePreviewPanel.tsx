@@ -35,6 +35,7 @@ export const LivePreviewPanel: React.FC<LivePreviewPanelProps> = ({
   const workExperience = (resumeData.workExperience || []) as Array<{
     jobTitle?: string;
     companyName?: string;
+    location?: string;
     startDate?: string;
     endDate?: string;
     isCurrentJob?: boolean;
@@ -129,15 +130,20 @@ export const LivePreviewPanel: React.FC<LivePreviewPanelProps> = ({
                 <div key={idx} className="bg-[#1a1a1a] rounded-lg p-3 border border-[#27272a]">
                   <p className="text-white font-semibold">{job.jobTitle}</p>
                   <p className="text-[#71717a] text-xs">{job.companyName}</p>
+                  {job.location && (
+                    <p className="text-[#71717a] text-xs">{job.location}</p>
+                  )}
                   {job.startDate && (
                     <p className="text-[#52525b] text-xs mt-1">
                       {job.startDate} - {job.isCurrentJob ? 'Present' : job.endDate || 'Present'}
                     </p>
                   )}
                   {job.responsibilities && (
-                    <p className="text-[#a1a1aa] text-xs mt-2 line-clamp-2">
-                      {job.responsibilities}
-                    </p>
+                    <ul className="text-[#a1a1aa] text-xs mt-2 list-disc ml-3 space-y-0.5">
+                      {job.responsibilities.split('\n').filter(l => l.trim()).slice(0, 3).map((line, i) => (
+                        <li key={i}>{line.replace(/^[-\u2022*]\s*/, '').trim()}</li>
+                      ))}
+                    </ul>
                   )}
                 </div>
               )

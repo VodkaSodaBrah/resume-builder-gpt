@@ -122,6 +122,11 @@ test.describe('Guided Mode Full Flow', () => {
     });
 
     // ---- Setup ----
+    // Block backend API calls to prevent errors from missing API server (port 7071)
+    await page.route('**/api/**', (route) =>
+      route.fulfill({ status: 200, body: JSON.stringify({ success: false }) })
+    );
+
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.clear();
@@ -273,20 +278,32 @@ test.describe('Guided Mode Full Flow', () => {
     const downloadPdfBtn = page.locator('button').filter({ hasText: 'Download PDF' });
     await downloadPdfBtn.waitFor({ state: 'visible', timeout: 15000 });
 
-    // Verify export options
+    // Verify export options card is displayed with both download buttons
     await expect(downloadPdfBtn).toBeVisible();
-    await expect(page.locator('button').filter({ hasText: 'Download Word (DOCX)' })).toBeVisible();
+    const docxBtn = page.locator('button').filter({ hasText: 'Download Word (DOCX)' });
+    await expect(docxBtn).toBeVisible();
     await expect(page.getByText("Jane Test Doe's Resume")).toBeVisible();
 
-    // Soft-assert PDF download works (listen for download event)
-    const [download] = await Promise.all([
-      page.waitForEvent('download', { timeout: 10000 }).catch(() => null),
+    // PDF Download - hard assertion
+    const [pdfDownload] = await Promise.all([
+      page.waitForEvent('download', { timeout: 30000 }),
       downloadPdfBtn.click(),
     ]);
+    expect(pdfDownload.suggestedFilename()).toBe('Jane_Test_Doe_Resume.pdf');
 
-    if (download) {
-      expect(download.suggestedFilename()).toContain('.pdf');
+    // DOCX Download - attempt with graceful fallback
+    // The DOCX download is reliably verified in export-and-preview-verification.spec.ts.
+    // In the full-flow test, file-saver's blob download can become unreliable after
+    // multiple prior downloads in the same Playwright worker session.
+    await expect(docxBtn).toBeEnabled({ timeout: 15000 });
+    try {
+      const [docxDownload] = await Promise.all([
+        page.waitForEvent('download', { timeout: 15000 }),
+        docxBtn.click(),
+      ]);
+      expect(docxDownload.suggestedFilename()).toBe('Jane_Test_Doe_Resume.docx');
+    } catch {
+      console.log('DOCX download not captured (verified in export-and-preview-verification.spec.ts)');
     }
-    // If download didn't trigger (e.g., jspdf not fully working in test env), that's OK - the UI is verified
   });
 });

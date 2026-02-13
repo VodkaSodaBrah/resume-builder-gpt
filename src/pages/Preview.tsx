@@ -497,7 +497,7 @@ export const Preview: React.FC = () => {
                               </p>
                             </div>
                           </div>
-                          <ul className="mt-2 ml-4 text-sm">
+                          <ul className="mt-2 ml-4 list-disc text-sm">
                             {(
                               job.enhancedResponsibilities || job.responsibilities
                             )
@@ -505,9 +505,7 @@ export const Preview: React.FC = () => {
                               .filter((line) => line.trim())
                               .map((point, i) => (
                                 <li key={i} className="mb-1">
-                                  {point.replace(/^[-•*]\s*/, '').trim()
-                                    ? `- ${point.replace(/^[-•*]\s*/, '').trim()}`
-                                    : null}
+                                  {point.replace(/^[-\u2022*]\s*/, '').trim() || null}
                                 </li>
                               ))}
                           </ul>

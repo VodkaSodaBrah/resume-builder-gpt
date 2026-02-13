@@ -25,6 +25,7 @@ export const HelpMeWriteFlow: React.FC<HelpMeWriteFlowProps> = ({
   const [coachingAnswers, setCoachingAnswers] = useState<string[]>([]);
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [generatedContent, setGeneratedContent] = useState('');
+  const [selectedBullets, setSelectedBullets] = useState<boolean[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
 
   const { resumeData } = useConversationStore();
@@ -62,12 +63,34 @@ export const HelpMeWriteFlow: React.FC<HelpMeWriteFlowProps> = ({
       });
 
       setGeneratedContent(response.generatedContent);
+      // Initialize all bullets as selected
+      const items = response.generatedContent
+        .split('\n')
+        .map((line: string) => line.replace(/^[\s]*[-\u2022*]\s*/, '').trim())
+        .filter(Boolean);
+      setSelectedBullets(items.map(() => true));
       setStep('preview');
     } catch {
       setErrorMessage('Something went wrong generating your content. You can try again or type it yourself.');
       setStep('error');
     }
   }, [context, resumeData]);
+
+  // Parse bullet items from generated content
+  const bulletItems = generatedContent
+    .split('\n')
+    .map(line => line.replace(/^[\s]*[-\u2022*]\s*/, '').trim())
+    .filter(Boolean);
+
+  const toggleBullet = useCallback((index: number) => {
+    setSelectedBullets(prev => {
+      const next = [...prev];
+      next[index] = !next[index];
+      return next;
+    });
+  }, []);
+
+  const selectedCount = selectedBullets.filter(Boolean).length;
 
   const handleTryAgain = useCallback(() => {
     generateContent(coachingAnswers);
@@ -164,20 +187,43 @@ export const HelpMeWriteFlow: React.FC<HelpMeWriteFlowProps> = ({
       {/* Preview Step */}
       {step === 'preview' && (
         <div className="space-y-3">
-          <p className="text-[#a1a1aa] text-xs">Here's what I came up with:</p>
-          <div className="bg-[#0a0a0a] border border-[#27272a] rounded-lg p-3">
-            <p className="text-white text-sm whitespace-pre-wrap">{generatedContent}</p>
+          <p className="text-[#a1a1aa] text-xs">Here's what I came up with -- select the ones you want:</p>
+          <div className="bg-[#0a0a0a] border border-[#27272a] rounded-lg p-3 space-y-2">
+            {bulletItems.map((bullet, i) => (
+              <label key={i} className="flex items-start gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={selectedBullets[i] ?? true}
+                  onChange={() => toggleBullet(i)}
+                  className="mt-1 accent-purple-500"
+                />
+                <span className={`text-sm ${selectedBullets[i] ? 'text-white' : 'text-[#52525b] line-through'}`}>
+                  {bullet}
+                </span>
+              </label>
+            ))}
           </div>
           <div className="flex flex-col gap-2">
             <button
-              onClick={() => onAccept(generatedContent)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium rounded-lg hover:from-green-600 hover:to-green-700 transition-all"
+              onClick={() => {
+                const selectedText = bulletItems
+                  .filter((_, i) => selectedBullets[i])
+                  .join('\n');
+                onAccept(selectedText);
+              }}
+              disabled={selectedCount === 0}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium rounded-lg hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Check className="w-4 h-4" />
-              Use This
+              Use Selected ({selectedCount})
             </button>
             <button
-              onClick={() => onAccept(generatedContent)}
+              onClick={() => {
+                const selectedText = bulletItems
+                  .filter((_, i) => selectedBullets[i])
+                  .join('\n');
+                onAccept(selectedText);
+              }}
               className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#1a1a1a] text-white text-sm rounded-lg border border-[#27272a] hover:bg-[#27272a] transition-all"
             >
               <Pencil className="w-3.5 h-3.5" />

@@ -31,6 +31,7 @@ const fullResumeData = {
       endDate: 'Dec 2023',
       isCurrentJob: false,
       responsibilities: 'Led development team\nBuilt scalable systems\nMentored junior developers',
+      enhancedResponsibilities: 'Led development team\nBuilt scalable systems\nMentored junior developers',
     },
   ],
   education: [
@@ -106,6 +107,7 @@ const emptySkillsResumeData = {
       startDate: 'Jan 2020',
       isCurrentJob: true,
       responsibilities: 'Working',
+      enhancedResponsibilities: 'Working',
     },
   ],
   education: [
@@ -135,6 +137,11 @@ async function navigateToPreviewWithData(
   page: import('@playwright/test').Page,
   resumeData: typeof fullResumeData | typeof emptySkillsResumeData
 ) {
+  // Block the AI enhance API to prevent infinite retry loops in test env
+  await page.route('**/api/resume/enhance', (route) =>
+    route.fulfill({ status: 200, body: JSON.stringify({ success: false }) })
+  );
+
   // First, set up localStorage before navigating
   // We need to go to the domain first to set localStorage
   await page.goto('/');
@@ -158,7 +165,7 @@ async function navigateToPreviewWithData(
         volunteeringCount: data.volunteering?.length || 0,
         referenceCount: data.references?.length || 0,
       },
-      version: 0,
+      version: 1,
     };
     localStorage.setItem('resume-builder-conversation', JSON.stringify(conversationStoreData));
 
@@ -193,7 +200,7 @@ async function navigateToPreviewWithData(
         aiResponseTimes: [],
         tokenUsage: { input: 0, output: 0, total: 0 },
       },
-      version: 0,
+      version: 1,
     };
     localStorage.setItem('resume-builder-ai-conversation', JSON.stringify(aiStoreData));
   }, resumeData);
@@ -395,7 +402,7 @@ test.describe('InlinePreviewCard - Certifications', () => {
           tokenUsage: { input: 0, output: 0, total: 0 },
           emailHelpShown: false,
         },
-        version: 0,
+        version: 1,
       };
       localStorage.setItem('resume-builder-ai-conversation', JSON.stringify(storeData));
     }, fullResumeData);
