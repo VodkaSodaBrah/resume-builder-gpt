@@ -3,6 +3,7 @@ import type { QuestionCategory } from '@/types';
 
 interface SectionProgressBarProps {
   currentCategory: QuestionCategory;
+  sectionConfirmed?: Record<string, boolean>;
   className?: string;
 }
 
@@ -33,6 +34,7 @@ const CATEGORY_TO_SECTION_INDEX: Record<QuestionCategory, number> = {
 
 export const SectionProgressBar: React.FC<SectionProgressBarProps> = ({
   currentCategory,
+  sectionConfirmed = {},
   className = '',
 }) => {
   const currentIndex = CATEGORY_TO_SECTION_INDEX[currentCategory];
@@ -42,7 +44,8 @@ export const SectionProgressBar: React.FC<SectionProgressBarProps> = ({
       {/* Section dots/pills */}
       <div className="flex items-center justify-between gap-1">
         {SECTIONS.map((section, index) => {
-          const isCompleted = index < currentIndex;
+          const isConfirmed = sectionConfirmed[section.id] === true;
+          const isCompleted = index < currentIndex || isConfirmed;
           const isCurrent = index === currentIndex;
 
           return (

@@ -6,18 +6,25 @@ import { InlinePreviewCard } from './InlinePreviewCard';
 import { ExportOptionsCard } from './ExportOptionsCard';
 import { GmailGuideCard } from './GmailGuideCard';
 import { LivePreviewPanel } from './LivePreviewPanel';
+import { SectionSummaryCard } from './SectionSummaryCard';
+import { HelpMeWriteFlow } from './HelpMeWriteFlow';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { SectionProgressBar, getSectionIntroMessage, getSectionCompletionMessage } from '@/components/ui/SectionProgressBar';
 import { useConversationStore } from '@/stores/conversationStore';
 import { useAnalyticsStore, AnalyticsEvents } from '@/stores/analyticsStore';
-import { getCategoryLabel, ADD_MORE_SECTION_MAP, getQuestionIndexById, transformFieldPath, getQuestionTextForEntry, getSectionKeyForQuestion } from '@/lib/questions';
+import { questions as allQuestions, getCategoryLabel, ADD_MORE_SECTION_MAP, getQuestionIndexById, transformFieldPath, getQuestionTextForEntry, getSectionKeyForQuestion } from '@/lib/questions';
 import { useTranslation } from '@/hooks/useTranslation';
 import { parseAnswer, applyExtractedFields, shouldSkipQuestion } from '@/lib/answerParser';
+import { ONBOARDING_MESSAGES, shouldShowOnboarding } from '@/lib/onboarding';
 
 // Special markers for inline cards
 const PREVIEW_CARD_MARKER = '__PREVIEW_CARD__';
 const EXPORT_OPTIONS_MARKER = '__EXPORT_OPTIONS__';
 const GMAIL_GUIDE_MARKER = '__GMAIL_GUIDE__';
+const SECTION_SUMMARY_MARKER = '__SECTION_SUMMARY__';
+
+// Categories that get summary cards
+const SUMMARIZABLE_CATEGORIES = new Set(['personal', 'work', 'education', 'volunteering', 'skills', 'references']);
 
 interface ChatContainerProps {
   isWidget?: boolean;
@@ -32,6 +39,8 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
   const [extractedFieldsToSkip, setExtractedFieldsToSkip] = useState<string[]>([]);
   // Live preview panel state
   const [showPreview, setShowPreview] = useState(false);
+  // Track if we're in onboarding confirm phase (waiting for Yes/No after onboarding messages)
+  const [awaitingOnboardingConfirm, setAwaitingOnboardingConfirm] = useState(false);
 
   const {
     messages,
@@ -56,6 +65,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
     addEducation,
     addVolunteering,
     addReference,
+    sectionPhase,
+    setSectionPhase,
+    confirmSection,
+    sectionConfirmed,
+    onboardingComplete,
+    setOnboardingComplete,
+    helpMeWriteActive,
+    helpMeWriteQuestionId,
+    startHelpMeWrite,
+    endHelpMeWrite,
   } = useConversationStore();
 
   const { trackEvent } = useAnalyticsStore();
@@ -113,26 +132,65 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages, isTyping]);
 
-  // Initialize conversation with first question
+  // Initialize conversation with first question (and onboarding for new users)
   useEffect(() => {
     if (!hasInitialized.current && messages.length === 0 && currentQuestion) {
       hasInitialized.current = true;
       trackEvent(AnalyticsEvents.RESUME_START);
 
-      // Add initial assistant message
-      setTyping(true);
-      setTimeout(() => {
-        addMessage({
-          role: 'assistant',
-          content: getQuestionText(currentQuestion),
-          questionId: currentQuestion.id,
+      if (shouldShowOnboarding(onboardingComplete)) {
+        // Show onboarding messages with typing delays
+        setTyping(true);
+        let delay = 500;
+        ONBOARDING_MESSAGES.forEach((msg, i) => {
+          setTimeout(() => {
+            addMessage({ role: 'assistant', content: msg });
+            // After the last onboarding message, show a confirm (Yes/No via the normal input)
+            if (i === ONBOARDING_MESSAGES.length - 1) {
+              setTyping(false);
+              setAwaitingOnboardingConfirm(true);
+            }
+          }, delay);
+          delay += 800;
         });
-        setTyping(false);
-      }, 500);
+      } else {
+        // Skip onboarding, show first question directly
+        setTyping(true);
+        setTimeout(() => {
+          addMessage({
+            role: 'assistant',
+            content: getQuestionText(currentQuestion),
+            questionId: currentQuestion.id,
+          });
+          setTyping(false);
+        }, 500);
+      }
     }
-  }, [currentQuestion, messages.length, addMessage, setTyping, trackEvent, getQuestionText]);
+  }, [currentQuestion, messages.length, addMessage, setTyping, trackEvent, getQuestionText, onboardingComplete]);
 
   // Handle answer submission
+  // Handle onboarding confirm submission
+  const handleOnboardingConfirm = useCallback((confirmed: boolean) => {
+    addMessage({ role: 'user', content: confirmed ? 'yes' : 'no' });
+    setAwaitingOnboardingConfirm(false);
+    setOnboardingComplete(true);
+
+    // Now show the first question
+    setTyping(true);
+    setTimeout(() => {
+      const store = useConversationStore.getState();
+      const question = store.getCurrentQuestion();
+      if (question) {
+        addMessage({
+          role: 'assistant',
+          content: getQuestionText(question),
+          questionId: question.id,
+        });
+      }
+      setTyping(false);
+    }, 500);
+  }, [addMessage, setOnboardingComplete, setTyping, getQuestionText]);
+
   const handleSubmit = useCallback((value: string) => {
     if (!currentQuestion) return;
 
@@ -463,30 +521,38 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
             });
           }, 500);
         } else if (isNewSection) {
-          // Show section completion message for the previous section
-          const completionMsg = getSectionCompletionMessage(currentQuestion.category);
-          if (completionMsg) {
+          // Check if the completed section should get a summary card
+          if (SUMMARIZABLE_CATEGORIES.has(currentQuestion.category)) {
+            // Show section summary card instead of immediately transitioning
+            setSectionPhase('summary');
             addMessage({
               role: 'assistant',
-              content: `✅ ${completionMsg}`,
+              content: SECTION_SUMMARY_MARKER,
             });
-          }
+          } else {
+            // Non-summarizable sections transition directly
+            const completionMsg = getSectionCompletionMessage(currentQuestion.category);
+            if (completionMsg) {
+              addMessage({
+                role: 'assistant',
+                content: `${completionMsg}`,
+              });
+            }
 
-          // Show section intro message for the new section
-          const introMsg = getSectionIntroMessage(nextQ.category);
-          if (introMsg) {
+            const introMsg = getSectionIntroMessage(nextQ.category);
+            if (introMsg) {
+              addMessage({
+                role: 'assistant',
+                content: introMsg,
+              });
+            }
+
             addMessage({
               role: 'assistant',
-              content: introMsg,
+              content: getQuestionText(nextQ),
+              questionId: nextQ.id,
             });
           }
-
-          // Then show the first question of the new section
-          addMessage({
-            role: 'assistant',
-            content: getQuestionText(nextQ),
-            questionId: nextQ.id,
-          });
         } else {
           addMessage({
             role: 'assistant',
@@ -532,6 +598,133 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
     // Remove the last two messages (user answer + assistant question)
     // This is a simplified version - in production you'd want more sophisticated state management
   }, [previousQuestion]);
+
+  // Summary card: "Looks Good, Continue"
+  const handleSummaryConfirm = useCallback(() => {
+    if (!currentQuestion) return;
+    const cat = currentQuestion.category;
+    confirmSection(cat);
+    setSectionPhase('questioning');
+
+    // Now proceed with existing section transition logic
+    const store = useConversationStore.getState();
+    let nextQ = store.getCurrentQuestion();
+
+    if (nextQ) {
+      // Show completion + intro messages for the next section
+      const completionMsg = getSectionCompletionMessage(cat);
+      if (completionMsg) {
+        addMessage({ role: 'assistant', content: `${completionMsg}` });
+      }
+
+      const introMsg = getSectionIntroMessage(nextQ.category);
+      if (introMsg) {
+        addMessage({ role: 'assistant', content: introMsg });
+      }
+
+      addMessage({
+        role: 'assistant',
+        content: getQuestionText(nextQ),
+        questionId: nextQ.id,
+      });
+    }
+  }, [currentQuestion, confirmSection, setSectionPhase, addMessage, getQuestionText]);
+
+  // Summary card: "Add Another"
+  const handleSummaryAddAnother = useCallback(() => {
+    if (!currentQuestion) return;
+
+    setSectionPhase('questioning');
+
+    // Find the "add more" question for the current category and trigger the same logic
+    const sectionKey = currentQuestion.category;
+    const incrementFns: Record<string, () => void> = {
+      'work': addWorkExperience,
+      'education': addEducation,
+      'volunteering': addVolunteering,
+      'references': addReference,
+    };
+
+    const addMoreMap: Record<string, string> = {
+      'work': 'work_company_1',
+      'education': 'education_school',
+      'volunteering': 'volunteering_org',
+      'references': 'reference_name',
+    };
+
+    const incrementFn = incrementFns[sectionKey];
+    if (incrementFn) incrementFn();
+
+    const firstQuestionId = addMoreMap[sectionKey];
+    if (firstQuestionId) {
+      const firstQuestionIndex = getQuestionIndexById(firstQuestionId);
+      goToQuestion(firstQuestionIndex);
+
+      setTyping(true);
+      setTimeout(() => {
+        const store = useConversationStore.getState();
+        const question = store.getCurrentQuestion();
+        if (question) {
+          addMessage({
+            role: 'assistant',
+            content: getQuestionText(question),
+            questionId: question.id,
+          });
+        }
+        setTyping(false);
+      }, 300);
+    }
+  }, [currentQuestion, setSectionPhase, addWorkExperience, addEducation, addVolunteering, addReference, goToQuestion, setTyping, addMessage, getQuestionText]);
+
+  // Summary card: "Edit Something"
+  const handleSummaryEdit = useCallback(() => {
+    // For now, go back to the first question of the current section
+    if (!currentQuestion) return;
+    setSectionPhase('questioning');
+
+    // Find first question in current category
+    const cat = currentQuestion.category;
+    const firstInSection = allQuestions.findIndex(q => q.category === cat);
+    if (firstInSection >= 0) {
+      goToQuestion(firstInSection);
+
+      setTyping(true);
+      setTimeout(() => {
+        const store = useConversationStore.getState();
+        const question = store.getCurrentQuestion();
+        if (question) {
+          addMessage({
+            role: 'assistant',
+            content: t('messages.editSection', "Let's update this section. Here's the first question:"),
+          });
+          addMessage({
+            role: 'assistant',
+            content: getQuestionText(question),
+            questionId: question.id,
+          });
+        }
+        setTyping(false);
+      }, 300);
+    }
+  }, [currentQuestion, setSectionPhase, goToQuestion, setTyping, addMessage, getQuestionText, t]);
+
+  // Help Me Write: trigger
+  const handleHelpMeWrite = useCallback(() => {
+    if (!currentQuestion) return;
+    startHelpMeWrite(currentQuestion.id);
+  }, [currentQuestion, startHelpMeWrite]);
+
+  // Help Me Write: accept generated content
+  const handleHelpMeWriteAccept = useCallback((text: string) => {
+    endHelpMeWrite();
+    // Submit the generated text as the answer
+    handleSubmit(text);
+  }, [endHelpMeWrite, handleSubmit]);
+
+  // Help Me Write: cancel
+  const handleHelpMeWriteCancel = useCallback(() => {
+    endHelpMeWrite();
+  }, [endHelpMeWrite]);
 
   // Handle skip
   const handleSkip = useCallback(() => {
@@ -604,7 +797,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
             </div>
           </div>
         {/* Section-based progress indicator */}
-        <SectionProgressBar currentCategory={currentCategory} />
+        <SectionProgressBar currentCategory={currentCategory} sectionConfirmed={sectionConfirmed} />
         {/* Detailed step progress */}
         <div className="mt-2 flex items-center justify-between text-xs text-[#52525b]">
           <span>Question {progress.current} of {progress.total}</span>
@@ -635,6 +828,19 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
               </div>
             );
           }
+          if (message.content === SECTION_SUMMARY_MARKER) {
+            return (
+              <div key={message.id} className="flex justify-start">
+                <SectionSummaryCard
+                  category={currentCategory}
+                  resumeData={resumeData}
+                  onConfirm={handleSummaryConfirm}
+                  onAddAnother={handleSummaryAddAnother}
+                  onEdit={handleSummaryEdit}
+                />
+              </div>
+            );
+          }
           if (message.content === GMAIL_GUIDE_MARKER) {
             const personalInfo = resumeData?.personalInfo as { fullName?: string } | undefined;
             return (
@@ -654,19 +860,50 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ isWidget = false, 
             />
           );
         })}
+        {helpMeWriteActive && helpMeWriteQuestionId && (
+          <div className="flex justify-start">
+            <HelpMeWriteFlow
+              questionId={helpMeWriteQuestionId}
+              onAccept={handleHelpMeWriteAccept}
+              onCancel={handleHelpMeWriteCancel}
+            />
+          </div>
+        )}
         {isTyping && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
 
-        {/* Input */}
-        <ChatInput
-          question={currentQuestion}
-          onSubmit={handleSubmit}
-          onBack={currentQuestionIndex > 0 ? handleBack : undefined}
-          onSkip={currentQuestion && !currentQuestion.isRequired ? handleSkip : undefined}
-          disabled={isTyping}
-          canGoBack={currentQuestionIndex > 0}
-        />
+        {/* Input area */}
+        {awaitingOnboardingConfirm ? (
+          /* Onboarding confirm buttons */
+          <div className="p-4 border-t border-[#27272a] bg-[#0a0a0a]">
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => handleOnboardingConfirm(true)}
+                disabled={isTyping}
+                className="px-4 py-2.5 text-sm font-medium bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all disabled:opacity-50"
+              >
+                Yes, let's go!
+              </button>
+            </div>
+            <button
+              onClick={() => handleOnboardingConfirm(true)}
+              className="mt-2 text-xs text-[#52525b] hover:text-[#a1a1aa] transition-colors"
+            >
+              Skip Intro
+            </button>
+          </div>
+        ) : sectionPhase !== 'summary' ? (
+          <ChatInput
+            question={currentQuestion}
+            onSubmit={handleSubmit}
+            onBack={currentQuestionIndex > 0 ? handleBack : undefined}
+            onSkip={currentQuestion && !currentQuestion.isRequired ? handleSkip : undefined}
+            onHelpMeWrite={currentQuestion?.helpMeWriteEligible ? handleHelpMeWrite : undefined}
+            disabled={isTyping || helpMeWriteActive}
+            canGoBack={currentQuestionIndex > 0}
+          />
+        ) : null}
       </div>
 
       {/* Live Preview Panel */}

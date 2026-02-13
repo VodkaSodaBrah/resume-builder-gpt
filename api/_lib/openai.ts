@@ -384,3 +384,98 @@ export const getConversationCompletionStream = async (
     throw error;
   }
 };
+
+// ============================================================================
+// HELP ME WRITE - COACHING TO CONTENT
+// ============================================================================
+
+const COACHING_PROMPTS: Record<string, string> = {
+  work_responsibilities: `Role: Resume writing coach helping non-technical users create professional job descriptions.
+
+Task: Transform the user's simple, conversational answers about their work into 3-4 professional resume bullet points.
+
+Rules:
+1. Start each bullet with a strong action verb
+2. Use the user's own details but phrase them professionally
+3. Add reasonable metrics/numbers when natural (e.g. "served customers" -> "Served 50+ customers daily")
+4. Keep language simple but professional -- this is for someone who may never have written a resume
+5. Do NOT invent duties -- only enhance what they described
+6. Match the specified language
+
+Output: Return ONLY bullet points, one per line starting with bullet character.`,
+
+  volunteering_responsibilities: `Role: Resume writing coach for volunteer experience descriptions.
+
+Task: Transform simple answers about volunteer work into 2-3 professional resume bullet points.
+
+Rules:
+1. Start each bullet with an action verb
+2. Highlight impact and community contribution
+3. Keep language warm but professional
+4. Include any numbers or scale mentioned
+5. Match the specified language
+
+Output: Return ONLY bullet points, one per line starting with bullet character.`,
+
+  skills_technical: `Role: Resume skills advisor.
+
+Task: Create a clean, professional list of technical skills from the user's casual description.
+
+Rules:
+1. Standardize tool/software names (e.g. "excel" -> "Microsoft Excel")
+2. Group related skills logically
+3. Add proficiency levels where appropriate
+4. Keep it concise -- comma-separated list
+5. Match the specified language
+
+Output: Return ONLY a comma-separated list of skills.`,
+
+  skills_soft: `Role: Resume skills advisor for soft skills / personal strengths.
+
+Task: Convert casual descriptions of strengths into professional soft skill labels.
+
+Rules:
+1. Use standard resume terminology
+2. Keep to 3-5 distinct skills
+3. Avoid vague terms -- be specific
+4. Match the specified language
+
+Output: Return ONLY a comma-separated list of soft skills.`,
+};
+
+export const generateFromCoaching = async (
+  questionContext: string,
+  simpleAnswers: string[],
+  jobContext?: { jobTitle?: string; companyName?: string },
+  language: string = 'en'
+): Promise<string> => {
+  try {
+    const systemPrompt = COACHING_PROMPTS[questionContext] || COACHING_PROMPTS.work_responsibilities;
+
+    const answersText = simpleAnswers.map((a, i) => `Answer ${i + 1}: ${a}`).join('\n');
+    const jobInfo = jobContext
+      ? `Job: ${jobContext.jobTitle || 'Unknown'} at ${jobContext.companyName || 'Unknown'}\n`
+      : '';
+
+    const userPrompt = `${jobInfo}Language: ${language}
+
+User's answers:
+${answersText}
+
+Professional content:`;
+
+    const response = await getOpenAIClient().chat.completions.create({
+      model: 'gpt-4.1-mini-2025-04-14',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_completion_tokens: 300,
+    });
+
+    return response.choices[0]?.message?.content?.trim() || '';
+  } catch (error) {
+    console.error('Error generating from coaching:', error);
+    throw error;
+  }
+};

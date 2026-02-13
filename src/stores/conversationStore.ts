@@ -22,6 +22,14 @@ interface ConversationStore extends ConversationState {
   addVolunteering: () => void;
   addReference: () => void;
 
+  // Guided mode actions
+  setSectionPhase: (phase: 'questioning' | 'summary') => void;
+  setOnboardingComplete: (val: boolean) => void;
+  startHelpMeWrite: (questionId: string) => void;
+  endHelpMeWrite: () => void;
+  confirmSection: (category: string) => void;
+  unconfirmSection: (category: string) => void;
+
   // Getters
   getCurrentQuestion: () => typeof questions[0] | null;
   getProgress: () => { current: number; total: number; percentage: number };
@@ -41,6 +49,12 @@ const initialState: ConversationState = {
   educationCount: 0,
   volunteeringCount: 0,
   referenceCount: 0,
+  // Guided mode state
+  sectionPhase: 'questioning',
+  onboardingComplete: false,
+  helpMeWriteActive: false,
+  helpMeWriteQuestionId: null,
+  sectionConfirmed: {},
 };
 
 // Helper to set nested object value by path
@@ -285,6 +299,29 @@ export const useConversationStore = create<ConversationStore>()(
           referenceCount: state.referenceCount + 1,
         }));
       },
+
+      // Guided mode actions
+      setSectionPhase: (phase) => set({ sectionPhase: phase }),
+
+      setOnboardingComplete: (val) => set({ onboardingComplete: val }),
+
+      startHelpMeWrite: (questionId) => set({
+        helpMeWriteActive: true,
+        helpMeWriteQuestionId: questionId,
+      }),
+
+      endHelpMeWrite: () => set({
+        helpMeWriteActive: false,
+        helpMeWriteQuestionId: null,
+      }),
+
+      confirmSection: (category) => set((state) => ({
+        sectionConfirmed: { ...state.sectionConfirmed, [category]: true },
+      })),
+
+      unconfirmSection: (category) => set((state) => ({
+        sectionConfirmed: { ...state.sectionConfirmed, [category]: false },
+      })),
     }),
     {
       name: 'resume-builder-conversation',
@@ -299,6 +336,9 @@ export const useConversationStore = create<ConversationStore>()(
         educationCount: state.educationCount,
         volunteeringCount: state.volunteeringCount,
         referenceCount: state.referenceCount,
+        sectionPhase: state.sectionPhase,
+        onboardingComplete: state.onboardingComplete,
+        sectionConfirmed: state.sectionConfirmed,
       }),
     }
   )

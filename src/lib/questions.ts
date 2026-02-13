@@ -155,6 +155,7 @@ export const questions: Question[] = [
     inputType: 'textarea',
     placeholder: 'Example: Served 50+ customers daily, processed cash and card payments accurately, trained 3 new team members on register operations, maintained store displays which increased product visibility',
     skipCondition: (data) => data.hasWorkExperience === false,
+    helpMeWriteEligible: true,
   },
   {
     id: 'work_add_more',
@@ -282,6 +283,7 @@ export const questions: Question[] = [
     inputType: 'textarea',
     placeholder: 'Example: Sorted and packed 200+ food boxes weekly for distribution, greeted and assisted 30+ families during food drives, coordinated with team of 10 volunteers to organize community events',
     skipCondition: (data) => data.hasVolunteering === false,
+    helpMeWriteEligible: true,
   },
   {
     id: 'volunteering_add_more',
@@ -311,6 +313,7 @@ export const questions: Question[] = [
     inputType: 'textarea',
     placeholder: 'Example: Microsoft Excel (advanced), Point of Sale systems, Data entry (60 WPM), QuickBooks, Social media management',
     skipCondition: (data) => data.hasTechnicalSkills === false,
+    helpMeWriteEligible: true,
   },
   {
     id: 'skills_has_certifications',
@@ -365,6 +368,7 @@ export const questions: Question[] = [
     inputType: 'textarea',
     placeholder: 'Example: Strong communication, Team leadership, Problem-solving, Time management, Attention to detail',
     skipCondition: (data) => data.hasSoftSkills === false,
+    helpMeWriteEligible: true,
   },
 
   // References

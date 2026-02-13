@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, ArrowLeft, SkipForward } from 'lucide-react';
+import { Send, ArrowLeft, SkipForward, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import type { Question } from '@/types';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -9,6 +9,7 @@ interface ChatInputProps {
   onSubmit: (value: string) => void;
   onBack?: () => void;
   onSkip?: () => void;
+  onHelpMeWrite?: () => void;
   disabled?: boolean;
   canGoBack?: boolean;
 }
@@ -18,6 +19,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onSubmit,
   onBack,
   onSkip,
+  onHelpMeWrite,
   disabled = false,
   canGoBack = false,
 }) => {
@@ -132,6 +134,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     return (
       <form onSubmit={handleSubmit} className="p-4 border-t border-[#27272a] bg-[#0a0a0a]">
         <div className="flex flex-col gap-3">
+          {/* Help Me Write button for eligible questions */}
+          {question.helpMeWriteEligible && onHelpMeWrite && (
+            <button
+              type="button"
+              onClick={onHelpMeWrite}
+              className="flex items-center gap-2 px-3 py-2 bg-purple-600/10 border border-purple-500/30 text-purple-400 text-sm rounded-lg hover:bg-purple-600/20 hover:border-purple-500/50 transition-all self-start"
+            >
+              <Sparkles className="w-4 h-4" />
+              Help Me Write This
+            </button>
+          )}
           <textarea
             ref={textareaRef}
             value={value}

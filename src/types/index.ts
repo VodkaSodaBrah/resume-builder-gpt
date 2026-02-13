@@ -141,6 +141,7 @@ export interface Question {
   };
   followUp?: string[];
   skipCondition?: (data: Partial<ResumeData>, entryIndex?: number) => boolean;
+  helpMeWriteEligible?: boolean;
 }
 
 export interface ConversationState {
@@ -154,6 +155,12 @@ export interface ConversationState {
   educationCount: number;
   volunteeringCount: number;
   referenceCount: number;
+  // Guided mode state
+  sectionPhase: 'questioning' | 'summary';
+  onboardingComplete: boolean;
+  helpMeWriteActive: boolean;
+  helpMeWriteQuestionId: string | null;
+  sectionConfirmed: Record<string, boolean>;
 }
 
 // Analytics types
@@ -192,6 +199,24 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
   pageSize: number;
   totalCount: number;
   totalPages: number;
+}
+
+// Help Me Write types
+export type HelpMeWriteContext =
+  | 'work_responsibilities'
+  | 'volunteering_responsibilities'
+  | 'skills_technical'
+  | 'skills_soft';
+
+export interface HelpMeWriteRequest {
+  questionContext: HelpMeWriteContext;
+  simpleAnswers: string[];
+  jobContext?: { jobTitle?: string; companyName?: string };
+  language: string;
+}
+
+export interface HelpMeWriteResponse {
+  generatedContent: string;
 }
 
 // AI Conversation types

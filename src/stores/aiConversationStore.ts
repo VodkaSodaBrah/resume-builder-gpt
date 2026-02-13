@@ -55,6 +55,13 @@ const initialState: Omit<AIConversationState, keyof AIConversationStore['actions
   volunteeringCount: 0,
   referenceCount: 0,
 
+  // Guided mode state (not used in AI mode but required by ConversationState)
+  sectionPhase: 'questioning',
+  onboardingComplete: false,
+  helpMeWriteActive: false,
+  helpMeWriteQuestionId: null,
+  sectionConfirmed: {},
+
   // AI mode controls
   isAIMode: true, // Start in AI mode by default
 

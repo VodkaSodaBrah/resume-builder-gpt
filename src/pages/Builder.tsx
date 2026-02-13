@@ -71,10 +71,10 @@ export const Builder: React.FC = () => {
   const navigate = useNavigate();
   const { user, isLoaded } = useAuth();
 
-  // Determine mode from URL param (default to AI mode)
+  // Determine mode from URL param (default to Guided mode)
   const modeParam = searchParams.get('mode');
   const editSection = searchParams.get('editSection');
-  const [useAIMode, setUseAIMode] = useState(modeParam !== 'classic');
+  const [useAIMode, setUseAIMode] = useState(modeParam === 'ai');
 
   // Section-to-question index mapping for edit mode
   // These indices correspond to the first question in each section
@@ -105,7 +105,7 @@ export const Builder: React.FC = () => {
   const toggleMode = useCallback(() => {
     const newMode = !useAIMode;
     setUseAIMode(newMode);
-    setSearchParams(newMode ? {} : { mode: 'classic' });
+    setSearchParams(newMode ? { mode: 'ai' } : {});
 
     // Reset the appropriate store when switching
     if (newMode) {
