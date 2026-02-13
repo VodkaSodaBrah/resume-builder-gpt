@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useUser as useClerkUser, useClerk } from '@clerk/clerk-react';
 import { useDevAuth, isDevMode } from '@/contexts/DevAuthContext';
 
@@ -22,17 +23,23 @@ export interface AuthState {
 function useDevAuthState(): AuthState {
   const { user, isLoaded, isSignedIn, signOut } = useDevAuth();
 
+  const authUser = useMemo(
+    () =>
+      user
+        ? {
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            fullName: user.fullName,
+            emailAddresses: user.emailAddresses,
+            primaryEmailAddress: user.emailAddresses[0],
+          }
+        : null,
+    [user]
+  );
+
   return {
-    user: user
-      ? {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          fullName: user.fullName,
-          emailAddresses: user.emailAddresses,
-          primaryEmailAddress: user.emailAddresses[0],
-        }
-      : null,
+    user: authUser,
     isLoaded,
     isSignedIn,
     signOut,
@@ -44,21 +51,27 @@ function useClerkAuthState(): AuthState {
   const { user, isLoaded, isSignedIn } = useClerkUser();
   const { signOut } = useClerk();
 
+  const authUser = useMemo(
+    () =>
+      user
+        ? {
+            id: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            fullName: user.fullName,
+            emailAddresses: user.emailAddresses.map((e) => ({
+              emailAddress: e.emailAddress,
+            })),
+            primaryEmailAddress: user.primaryEmailAddress
+              ? { emailAddress: user.primaryEmailAddress.emailAddress }
+              : undefined,
+          }
+        : null,
+    [user]
+  );
+
   return {
-    user: user
-      ? {
-          id: user.id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          fullName: user.fullName,
-          emailAddresses: user.emailAddresses.map((e) => ({
-            emailAddress: e.emailAddress,
-          })),
-          primaryEmailAddress: user.primaryEmailAddress
-            ? { emailAddress: user.primaryEmailAddress.emailAddress }
-            : undefined,
-        }
-      : null,
+    user: authUser,
     isLoaded,
     isSignedIn: isSignedIn ?? false,
     signOut: () => signOut({ redirectUrl: '/' }),

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -24,8 +24,8 @@ import { downloadPDF, downloadDOCX, expandDegreeAbbreviation } from '@/lib/resum
 import { getResume, supabase } from '@/lib/supabase';
 import type { ResumeData, TemplateStyle } from '@/types';
 
-// AI Enhancement helper - calls the Azure Functions API
-async function enhanceWithAI(
+// AI Enhancement helper - calls the API endpoint
+export async function enhanceWithAI(
   workExperiences: Array<{ jobTitle: string; responsibilities: string }>,
   language: string = 'en'
 ): Promise<Array<{ enhanced: string }> | null> {
@@ -41,6 +41,11 @@ async function enhanceWithAI(
         language,
       }),
     });
+
+    if (!response.ok) {
+      console.error('Enhancement API returned', response.status);
+      return null;
+    }
 
     const data = await response.json();
 
@@ -79,6 +84,7 @@ export const Preview: React.FC = () => {
     initialData?.templateStyle || 'modern'
   );
   const [showEditModal, setShowEditModal] = useState(false);
+  const enhancementAttempted = useRef(false);
 
   // Section options for the Edit modal
   const editSections = [
@@ -144,9 +150,15 @@ export const Preview: React.FC = () => {
     }
   };
 
-  // Enhance resume content with AI (placeholder - will use Supabase Edge Functions later)
+  // Enhance resume content with AI (single attempt -- ref prevents retry loops)
   useEffect(() => {
-    if (resumeData && !resumeData.workExperience?.[0]?.enhancedResponsibilities && user) {
+    if (
+      resumeData &&
+      !resumeData.workExperience?.[0]?.enhancedResponsibilities &&
+      user &&
+      !enhancementAttempted.current
+    ) {
+      enhancementAttempted.current = true;
       enhanceContent();
     }
   }, [resumeData, user]);
