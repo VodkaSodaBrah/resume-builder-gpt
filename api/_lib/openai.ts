@@ -479,3 +479,59 @@ Professional content:`;
     throw error;
   }
 };
+
+// ============================================================================
+// SINGLE-FIELD AI REWRITE
+// ============================================================================
+
+const FIELD_REWRITE_PROMPT = `Role: Expert resume editor.
+Task: Improve the provided resume text while preserving its core meaning.
+Rules:
+1. Make language more professional and impactful
+2. Use active voice and strong action verbs
+3. Preserve all factual information (don't invent details)
+4. Keep similar length
+5. Match the input language
+Output: Return ONLY the improved text, nothing else.`;
+
+const JOB_TITLE_REWRITE_PROMPT = `Role: Resume formatting specialist.
+Task: Standardize and professionalize the given job title.
+Rules:
+1. Use industry-standard title format
+2. Capitalize correctly
+3. Do not change the meaning or level of the role
+4. Match the input language
+Output: Return ONLY the improved title, nothing else.`;
+
+export const rewriteFieldContent = async (
+  fieldType: string,
+  currentValue: string,
+  context?: { jobTitle?: string; section?: string },
+  language: string = 'en'
+): Promise<string> => {
+  try {
+    const isResponsibility = fieldType === 'responsibility';
+    const systemPrompt = fieldType === 'job_title' || fieldType === 'role'
+      ? JOB_TITLE_REWRITE_PROMPT
+      : isResponsibility
+      ? RESUME_ENHANCEMENT_PROMPT
+      : FIELD_REWRITE_PROMPT;
+
+    const contextLine = context?.jobTitle ? `Position: ${context.jobTitle}\n` : '';
+    const userPrompt = `${contextLine}Language: ${language}\nOriginal:\n${currentValue}\n\nImproved:`;
+
+    const response = await getOpenAIClient().chat.completions.create({
+      model: 'gpt-4.1-mini-2025-04-14',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      max_completion_tokens: 300,
+    });
+
+    return response.choices[0]?.message?.content?.trim() || currentValue;
+  } catch (error) {
+    console.error('Error rewriting field content:', error);
+    return currentValue;
+  }
+};

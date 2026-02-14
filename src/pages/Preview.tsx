@@ -22,6 +22,9 @@ import { useConversationStore } from '@/stores/conversationStore';
 import { useAnalyticsStore, AnalyticsEvents } from '@/stores/analyticsStore';
 import { downloadPDF, downloadDOCX, expandDegreeAbbreviation } from '@/lib/resumeGenerator';
 import { getResume, supabase } from '@/lib/supabase';
+import { EditableField } from '@/components/preview/EditableField';
+import { AIRewriteButton } from '@/components/preview/AIRewriteButton';
+import { usePreviewEditor } from '@/hooks/usePreviewEditor';
 import type { ResumeData, TemplateStyle } from '@/types';
 
 // AI Enhancement helper - calls the API endpoint
@@ -60,6 +63,18 @@ export async function enhanceWithAI(
   }
 }
 
+// Empty default for unconditional hook call
+const EMPTY_RESUME: ResumeData = {
+  personalInfo: { fullName: '', email: '', phone: '' },
+  workExperience: [],
+  education: [],
+  volunteering: [],
+  skills: { technicalSkills: [], softSkills: [], certifications: [], languages: [] },
+  references: [],
+  templateStyle: 'modern',
+  language: 'en',
+};
+
 export const Preview: React.FC = () => {
   const { resumeId } = useParams();
   const location = useLocation();
@@ -71,7 +86,6 @@ export const Preview: React.FC = () => {
   const conversationResumeData = useConversationStore((state) => state.resumeData);
 
   // Try multiple data sources: location.state > conversationStore
-  // Cast conversationResumeData to ResumeData since it may be Partial but should have enough data to display
   const initialData = location.state?.resumeData ||
     (conversationResumeData && Object.keys(conversationResumeData).length > 0 ? conversationResumeData as ResumeData : null);
 
@@ -86,6 +100,30 @@ export const Preview: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const enhancementAttempted = useRef(false);
 
+  // Inline editing hook (called unconditionally per rules of hooks)
+  const editor = usePreviewEditor(resumeData || EMPTY_RESUME);
+  // Use the editor's data for rendering when we have real data
+  const displayData = resumeData ? editor.resumeData : null;
+  const { onFieldSave } = editor;
+
+  // Bullet save helper: reconstructs newline-delimited string from individual bullet edits
+  const onBulletSave = (jobIndex: number, bulletIndex: number, newValue: string) => {
+    if (!displayData) return;
+    const job = displayData.workExperience[jobIndex];
+    const source = job.enhancedResponsibilities || job.responsibilities;
+    const lines = source.split('\n').filter((l) => l.trim());
+    lines[bulletIndex] = newValue;
+    const path = job.enhancedResponsibilities
+      ? `workExperience[${jobIndex}].enhancedResponsibilities`
+      : `workExperience[${jobIndex}].responsibilities`;
+    onFieldSave(path, lines.join('\n'));
+  };
+
+  // Volunteer bullet save helper
+  const onVolunteerBulletSave = (volIndex: number, newValue: string) => {
+    onFieldSave(`volunteering[${volIndex}].responsibilities`, newValue);
+  };
+
   // Section options for the Edit modal
   const editSections = [
     { id: 'personal', label: 'Personal Information', icon: User, description: 'Name, email, phone, location' },
@@ -98,7 +136,6 @@ export const Preview: React.FC = () => {
 
   const handleEditSection = (sectionId: string) => {
     setShowEditModal(false);
-    // Navigate to builder with section parameter
     const builderPath = resumeId && resumeId !== 'new'
       ? `/builder/${resumeId}?editSection=${sectionId}`
       : `/builder?editSection=${sectionId}`;
@@ -110,7 +147,6 @@ export const Preview: React.FC = () => {
     if (resumeId && !resumeData && isLoaded && user) {
       loadResume();
     } else if (!resumeId && !resumeData && conversationResumeData && Object.keys(conversationResumeData).length > 0) {
-      // Fallback: use conversation store data if no resumeId
       setResumeData(conversationResumeData as ResumeData);
       setIsLoading(false);
     }
@@ -128,7 +164,6 @@ export const Preview: React.FC = () => {
         setResumeData(resume.resume_data);
         setSelectedTemplate(resume.resume_data.templateStyle || 'modern');
       } else {
-        // Database returned no data - try conversation store as fallback
         if (conversationResumeData && Object.keys(conversationResumeData).length > 0) {
           console.log('Using conversation store data as fallback');
           setResumeData(conversationResumeData as ResumeData);
@@ -138,7 +173,6 @@ export const Preview: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to load resume:', error);
-      // Try conversation store as fallback on error
       if (conversationResumeData && Object.keys(conversationResumeData).length > 0) {
         console.log('Database error - using conversation store data as fallback');
         setResumeData(conversationResumeData as ResumeData);
@@ -166,7 +200,6 @@ export const Preview: React.FC = () => {
   const enhanceContent = async () => {
     if (!resumeData || !user) return;
 
-    // Skip if no work experience to enhance
     if (!resumeData.workExperience || resumeData.workExperience.length === 0) {
       return;
     }
@@ -201,13 +234,15 @@ export const Preview: React.FC = () => {
   };
 
   const handleDownloadPDF = async () => {
-    if (!resumeData) return;
+    // Use editor data (includes inline edits) if available, else fallback
+    const dataForDownload = displayData || resumeData;
+    if (!dataForDownload) return;
 
     setIsDownloading(true);
     trackEvent(AnalyticsEvents.DOWNLOAD_PDF);
 
     try {
-      const dataWithTemplate = { ...resumeData, templateStyle: selectedTemplate };
+      const dataWithTemplate = { ...dataForDownload, templateStyle: selectedTemplate };
       await downloadPDF(dataWithTemplate);
     } catch (error) {
       console.error('PDF download failed:', error);
@@ -217,13 +252,14 @@ export const Preview: React.FC = () => {
   };
 
   const handleDownloadDOCX = async () => {
-    if (!resumeData) return;
+    const dataForDownload = displayData || resumeData;
+    if (!dataForDownload) return;
 
     setIsDownloading(true);
     trackEvent(AnalyticsEvents.DOWNLOAD_DOCX);
 
     try {
-      const dataWithTemplate = { ...resumeData, templateStyle: selectedTemplate };
+      const dataWithTemplate = { ...dataForDownload, templateStyle: selectedTemplate };
       await downloadDOCX(dataWithTemplate);
     } catch (error) {
       console.error('DOCX download failed:', error);
@@ -237,6 +273,15 @@ export const Preview: React.FC = () => {
     trackEvent(AnalyticsEvents.TEMPLATE_SELECTED, { template });
   };
 
+  // Section heading style helper
+  const sectionHeadingClass = `text-sm uppercase tracking-wider font-bold mb-2 pb-1 border-b ${
+    selectedTemplate === 'modern'
+      ? 'text-blue-600 border-blue-600'
+      : selectedTemplate === 'professional'
+      ? 'text-green-600 border-green-600'
+      : 'text-black border-black'
+  }`;
+
   if (isLoading || !isLoaded) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
@@ -245,7 +290,7 @@ export const Preview: React.FC = () => {
     );
   }
 
-  if (!resumeData) {
+  if (!displayData) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
         <div className="text-center max-w-md">
@@ -296,6 +341,14 @@ export const Preview: React.FC = () => {
       description: 'Compact layout with Calibri',
     },
   ];
+
+  const nameClassName = `text-center mb-2 ${
+    selectedTemplate === 'classic'
+      ? 'text-2xl font-serif'
+      : selectedTemplate === 'modern'
+      ? 'text-2xl font-sans'
+      : 'text-xl font-sans'
+  }`;
 
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
@@ -444,56 +497,98 @@ export const Preview: React.FC = () => {
               {/* Resume Preview Content */}
               <div className="p-8 min-h-[800px] text-black">
                 {/* Name */}
-                <h1
-                  className={`text-center mb-2 ${
-                    selectedTemplate === 'classic'
-                      ? 'text-2xl font-serif'
-                      : selectedTemplate === 'modern'
-                      ? 'text-2xl font-sans'
-                      : 'text-xl font-sans'
-                  }`}
-                  style={{ fontWeight: 'bold' }}
-                >
-                  {resumeData.personalInfo?.fullName}
-                </h1>
+                <EditableField
+                  tag="h1"
+                  value={displayData.personalInfo?.fullName || ''}
+                  className={nameClassName}
+                  onSave={(v) => onFieldSave('personalInfo.fullName', v)}
+                />
 
                 {/* Contact */}
                 <p className="text-center text-sm text-gray-600 mb-6">
-                  {[
-                    resumeData.personalInfo?.email,
-                    resumeData.personalInfo?.phone,
-                    resumeData.personalInfo?.city,
-                  ]
-                    .filter(Boolean)
-                    .join(' | ')}
+                  {displayData.personalInfo?.email && (
+                    <EditableField
+                      tag="span"
+                      value={displayData.personalInfo.email}
+                      className="text-sm text-gray-600"
+                      onSave={(v) => onFieldSave('personalInfo.email', v)}
+                    />
+                  )}
+                  {displayData.personalInfo?.email && displayData.personalInfo?.phone && ' | '}
+                  {displayData.personalInfo?.phone && (
+                    <EditableField
+                      tag="span"
+                      value={displayData.personalInfo.phone}
+                      className="text-sm text-gray-600"
+                      onSave={(v) => onFieldSave('personalInfo.phone', v)}
+                    />
+                  )}
+                  {(displayData.personalInfo?.email || displayData.personalInfo?.phone) && displayData.personalInfo?.city && ' | '}
+                  {displayData.personalInfo?.city && (
+                    <EditableField
+                      tag="span"
+                      value={displayData.personalInfo.city}
+                      className="text-sm text-gray-600"
+                      onSave={(v) => onFieldSave('personalInfo.city', v)}
+                    />
+                  )}
                 </p>
 
                 {/* Work Experience */}
-                {resumeData.workExperience &&
-                  resumeData.workExperience.length > 0 && (
+                {displayData.workExperience &&
+                  displayData.workExperience.length > 0 && (
                     <div className="mb-6">
-                      <h2
-                        className={`text-sm uppercase tracking-wider font-bold mb-2 pb-1 border-b ${
-                          selectedTemplate === 'modern'
-                            ? 'text-blue-600 border-blue-600'
-                            : selectedTemplate === 'professional'
-                            ? 'text-green-600 border-green-600'
-                            : 'text-black border-black'
-                        }`}
-                      >
+                      <h2 className={sectionHeadingClass}>
                         Work Experience
                       </h2>
-                      {resumeData.workExperience.map((job, index) => (
+                      {displayData.workExperience.map((job, index) => (
                         <div key={index} className="mb-4">
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="font-bold">
-                                {job.jobTitle} | {job.companyName}
+                              <p className="font-bold group flex items-center gap-1">
+                                <EditableField
+                                  tag="span"
+                                  value={job.jobTitle}
+                                  className="font-bold"
+                                  onSave={(v) => onFieldSave(`workExperience[${index}].jobTitle`, v)}
+                                />
+                                <AIRewriteButton
+                                  currentValue={job.jobTitle}
+                                  fieldType="job_title"
+                                  context={{ jobTitle: job.jobTitle, section: 'work' }}
+                                  language={displayData.language}
+                                  onRewriteComplete={(v) => onFieldSave(`workExperience[${index}].jobTitle`, v)}
+                                />
+                                {' | '}
+                                <EditableField
+                                  tag="span"
+                                  value={job.companyName}
+                                  className="font-bold"
+                                  onSave={(v) => onFieldSave(`workExperience[${index}].companyName`, v)}
+                                />
                               </p>
                               <p className="text-sm text-gray-600 italic">
-                                {job.startDate} -{' '}
-                                {job.isCurrentJob ? 'Present' : job.endDate} |{' '}
-                                {job.location}
+                                <EditableField
+                                  tag="span"
+                                  value={job.startDate}
+                                  className="text-sm text-gray-600 italic"
+                                  onSave={(v) => onFieldSave(`workExperience[${index}].startDate`, v)}
+                                />
+                                {' - '}
+                                <EditableField
+                                  tag="span"
+                                  value={job.isCurrentJob ? 'Present' : (job.endDate || '')}
+                                  className="text-sm text-gray-600 italic"
+                                  disabled={job.isCurrentJob}
+                                  onSave={(v) => onFieldSave(`workExperience[${index}].endDate`, v)}
+                                />
+                                {' | '}
+                                <EditableField
+                                  tag="span"
+                                  value={job.location}
+                                  className="text-sm text-gray-600 italic"
+                                  onSave={(v) => onFieldSave(`workExperience[${index}].location`, v)}
+                                />
                               </p>
                             </div>
                           </div>
@@ -503,11 +598,26 @@ export const Preview: React.FC = () => {
                             )
                               .split('\n')
                               .filter((line) => line.trim())
-                              .map((point, i) => (
-                                <li key={i} className="mb-1">
-                                  {point.replace(/^[-\u2022*]\s*/, '').trim() || null}
-                                </li>
-                              ))}
+                              .map((point, i) => {
+                                const cleanPoint = point.replace(/^[-\u2022*]\s*/, '').trim();
+                                return (
+                                  <li key={i} className="mb-1 group flex items-start gap-1">
+                                    <EditableField
+                                      tag="span"
+                                      value={cleanPoint}
+                                      className="text-sm"
+                                      onSave={(v) => onBulletSave(index, i, v)}
+                                    />
+                                    <AIRewriteButton
+                                      currentValue={cleanPoint}
+                                      fieldType="responsibility"
+                                      context={{ jobTitle: job.jobTitle, section: 'work' }}
+                                      language={displayData.language}
+                                      onRewriteComplete={(v) => onBulletSave(index, i, v)}
+                                    />
+                                  </li>
+                                );
+                              })}
                           </ul>
                         </div>
                       ))}
@@ -515,28 +625,54 @@ export const Preview: React.FC = () => {
                   )}
 
                 {/* Education */}
-                {resumeData.education && resumeData.education.length > 0 && (
+                {displayData.education && displayData.education.length > 0 && (
                   <div className="mb-6">
-                    <h2
-                      className={`text-sm uppercase tracking-wider font-bold mb-2 pb-1 border-b ${
-                        selectedTemplate === 'modern'
-                          ? 'text-blue-600 border-blue-600'
-                          : selectedTemplate === 'professional'
-                          ? 'text-green-600 border-green-600'
-                          : 'text-black border-black'
-                      }`}
-                    >
+                    <h2 className={sectionHeadingClass}>
                       Education
                     </h2>
-                    {resumeData.education.map((edu, index) => (
+                    {displayData.education.map((edu, index) => (
                       <div key={index} className="mb-2">
                         <p className="font-bold">
-                          {expandDegreeAbbreviation(edu.degree)}
-                          {edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ''}
+                          <EditableField
+                            tag="span"
+                            value={expandDegreeAbbreviation(edu.degree)}
+                            className="font-bold"
+                            onSave={(v) => onFieldSave(`education[${index}].degree`, v)}
+                          />
+                          {edu.fieldOfStudy && (
+                            <>
+                              {' in '}
+                              <EditableField
+                                tag="span"
+                                value={edu.fieldOfStudy}
+                                className="font-bold"
+                                onSave={(v) => onFieldSave(`education[${index}].fieldOfStudy`, v)}
+                              />
+                            </>
+                          )}
                         </p>
                         <p className="text-sm text-gray-600 italic">
-                          {edu.schoolName} | {edu.startYear} -{' '}
-                          {edu.isCurrentlyStudying ? 'Present' : edu.endYear}
+                          <EditableField
+                            tag="span"
+                            value={edu.schoolName}
+                            className="text-sm text-gray-600 italic"
+                            onSave={(v) => onFieldSave(`education[${index}].schoolName`, v)}
+                          />
+                          {' | '}
+                          <EditableField
+                            tag="span"
+                            value={edu.startYear}
+                            className="text-sm text-gray-600 italic"
+                            onSave={(v) => onFieldSave(`education[${index}].startYear`, v)}
+                          />
+                          {' - '}
+                          <EditableField
+                            tag="span"
+                            value={edu.isCurrentlyStudying ? 'Present' : (edu.endYear || '')}
+                            className="text-sm text-gray-600 italic"
+                            disabled={edu.isCurrentlyStudying}
+                            onSave={(v) => onFieldSave(`education[${index}].endYear`, v)}
+                          />
                         </p>
                       </div>
                     ))}
@@ -544,30 +680,67 @@ export const Preview: React.FC = () => {
                 )}
 
                 {/* Volunteering */}
-                {resumeData.volunteering && resumeData.volunteering.length > 0 && (
+                {displayData.volunteering && displayData.volunteering.length > 0 && (
                   <div className="mb-6">
-                    <h2
-                      className={`text-sm uppercase tracking-wider font-bold mb-2 pb-1 border-b ${
-                        selectedTemplate === 'modern'
-                          ? 'text-blue-600 border-blue-600'
-                          : selectedTemplate === 'professional'
-                          ? 'text-green-600 border-green-600'
-                          : 'text-black border-black'
-                      }`}
-                    >
+                    <h2 className={sectionHeadingClass}>
                       Volunteer Experience
                     </h2>
-                    {resumeData.volunteering.map((vol, index) => (
+                    {displayData.volunteering.map((vol, index) => (
                       <div key={index} className="mb-3">
                         <div className="flex justify-between items-start">
-                          <p className="font-bold">{vol.role}</p>
+                          <div className="group flex items-center gap-1">
+                            <EditableField
+                              tag="p"
+                              value={vol.role}
+                              className="font-bold"
+                              onSave={(v) => onFieldSave(`volunteering[${index}].role`, v)}
+                            />
+                            <AIRewriteButton
+                              currentValue={vol.role}
+                              fieldType="role"
+                              context={{ section: 'volunteering' }}
+                              language={displayData.language}
+                              onRewriteComplete={(v) => onFieldSave(`volunteering[${index}].role`, v)}
+                            />
+                          </div>
                           <span className="text-sm text-gray-600 italic">
-                            {vol.startDate}{vol.endDate ? ` - ${vol.endDate}` : ' - Present'}
+                            <EditableField
+                              tag="span"
+                              value={vol.startDate}
+                              className="text-sm text-gray-600 italic"
+                              onSave={(v) => onFieldSave(`volunteering[${index}].startDate`, v)}
+                            />
+                            {' - '}
+                            <EditableField
+                              tag="span"
+                              value={vol.endDate || 'Present'}
+                              className="text-sm text-gray-600 italic"
+                              onSave={(v) => onFieldSave(`volunteering[${index}].endDate`, v)}
+                            />
                           </span>
                         </div>
-                        <p className="text-sm text-gray-700">{vol.organizationName}</p>
+                        <EditableField
+                          tag="p"
+                          value={vol.organizationName}
+                          className="text-sm text-gray-700"
+                          onSave={(v) => onFieldSave(`volunteering[${index}].organizationName`, v)}
+                        />
                         {vol.responsibilities && (
-                          <p className="mt-1 text-sm text-gray-600">{vol.responsibilities}</p>
+                          <div className="group flex items-start gap-1">
+                            <EditableField
+                              tag="p"
+                              value={vol.responsibilities}
+                              className="mt-1 text-sm text-gray-600"
+                              onSave={(v) => onVolunteerBulletSave(index, v)}
+                            />
+                            <AIRewriteButton
+                              currentValue={vol.responsibilities}
+                              fieldType="responsibility"
+                              context={{ jobTitle: vol.role, section: 'volunteering' }}
+                              language={displayData.language}
+                              onRewriteComplete={(v) => onVolunteerBulletSave(index, v)}
+                            />
+                          </div>
                         )}
                       </div>
                     ))}
@@ -575,49 +748,78 @@ export const Preview: React.FC = () => {
                 )}
 
                 {/* Skills */}
-                {resumeData.skills && (
-                  resumeData.skills.technicalSkills?.length > 0 ||
-                  resumeData.skills.softSkills?.length > 0 ||
-                  resumeData.skills.certifications?.length > 0 ||
-                  resumeData.skills.languages?.length > 0
+                {displayData.skills && (
+                  displayData.skills.technicalSkills?.length > 0 ||
+                  displayData.skills.softSkills?.length > 0 ||
+                  displayData.skills.certifications?.length > 0 ||
+                  displayData.skills.languages?.length > 0
                 ) && (
                   <div className="mb-6">
-                    <h2
-                      className={`text-sm uppercase tracking-wider font-bold mb-2 pb-1 border-b ${
-                        selectedTemplate === 'modern'
-                          ? 'text-blue-600 border-blue-600'
-                          : selectedTemplate === 'professional'
-                          ? 'text-green-600 border-green-600'
-                          : 'text-black border-black'
-                      }`}
-                    >
+                    <h2 className={sectionHeadingClass}>
                       Skills
                     </h2>
                     <ul className="text-sm ml-4">
-                      {resumeData.skills.technicalSkills?.length > 0 && (
+                      {displayData.skills.technicalSkills?.length > 0 && (
                         <li className="mb-1">
                           <strong>Technical:</strong>{' '}
-                          {resumeData.skills.technicalSkills.join(', ')}
+                          <EditableField
+                            tag="span"
+                            value={displayData.skills.technicalSkills.join(', ')}
+                            className="text-sm"
+                            onSave={(v) => onFieldSave(
+                              'skills.technicalSkills',
+                              v.split(',').map((s) => s.trim()).filter(Boolean)
+                            )}
+                          />
                         </li>
                       )}
-                      {resumeData.skills.softSkills?.length > 0 && (
+                      {displayData.skills.softSkills?.length > 0 && (
                         <li className="mb-1">
                           <strong>Soft Skills:</strong>{' '}
-                          {resumeData.skills.softSkills.join(', ')}
+                          <EditableField
+                            tag="span"
+                            value={displayData.skills.softSkills.join(', ')}
+                            className="text-sm"
+                            onSave={(v) => onFieldSave(
+                              'skills.softSkills',
+                              v.split(',').map((s) => s.trim()).filter(Boolean)
+                            )}
+                          />
                         </li>
                       )}
-                      {resumeData.skills.certifications?.length > 0 && (
+                      {displayData.skills.certifications?.length > 0 && (
                         <li className="mb-1">
                           <strong>Certifications:</strong>{' '}
-                          {resumeData.skills.certifications.join(', ')}
+                          <EditableField
+                            tag="span"
+                            value={displayData.skills.certifications.join(', ')}
+                            className="text-sm"
+                            onSave={(v) => onFieldSave(
+                              'skills.certifications',
+                              v.split(',').map((s) => s.trim()).filter(Boolean)
+                            )}
+                          />
                         </li>
                       )}
-                      {resumeData.skills.languages?.length > 0 && (
+                      {displayData.skills.languages?.length > 0 && (
                         <li className="mb-1">
                           <strong>Languages:</strong>{' '}
-                          {resumeData.skills.languages
-                            .map((l) => `${l.language} (${l.proficiency})`)
-                            .join(', ')}
+                          <EditableField
+                            tag="span"
+                            value={displayData.skills.languages
+                              .map((l) => `${l.language} (${l.proficiency})`)
+                              .join(', ')}
+                            className="text-sm"
+                            onSave={(v) => {
+                              const langs = v.split(',').map((s) => {
+                                const match = s.trim().match(/^(.+?)\s*\((.+?)\)$/);
+                                return match
+                                  ? { language: match[1].trim(), proficiency: match[2].trim() }
+                                  : { language: s.trim(), proficiency: 'professional' };
+                              }).filter((l) => l.language);
+                              onFieldSave('skills.languages', langs);
+                            }}
+                          />
                         </li>
                       )}
                     </ul>
@@ -625,27 +827,45 @@ export const Preview: React.FC = () => {
                 )}
 
                 {/* References */}
-                {resumeData.references && resumeData.references.length > 0 && (
+                {displayData.references && displayData.references.length > 0 && (
                   <div className="mb-6">
-                    <h2
-                      className={`text-sm uppercase tracking-wider font-bold mb-2 pb-1 border-b ${
-                        selectedTemplate === 'modern'
-                          ? 'text-blue-600 border-blue-600'
-                          : selectedTemplate === 'professional'
-                          ? 'text-green-600 border-green-600'
-                          : 'text-black border-black'
-                      }`}
-                    >
+                    <h2 className={sectionHeadingClass}>
                       References
                     </h2>
-                    {resumeData.references.map((ref, index) => (
+                    {displayData.references.map((ref, index) => (
                       <div key={index} className="mb-3">
-                        <p className="font-bold">{ref.name}</p>
+                        <EditableField
+                          tag="p"
+                          value={ref.name}
+                          className="font-bold"
+                          onSave={(v) => onFieldSave(`references[${index}].name`, v)}
+                        />
                         {ref.relationship && (
-                          <p className="text-sm text-gray-600 italic">{ref.relationship}</p>
+                          <EditableField
+                            tag="p"
+                            value={ref.relationship}
+                            className="text-sm text-gray-600 italic"
+                            onSave={(v) => onFieldSave(`references[${index}].relationship`, v)}
+                          />
                         )}
                         <p className="text-sm text-gray-500">
-                          {[ref.email, ref.phone].filter(Boolean).join(' | ')}
+                          {ref.email && (
+                            <EditableField
+                              tag="span"
+                              value={ref.email}
+                              className="text-sm text-gray-500"
+                              onSave={(v) => onFieldSave(`references[${index}].email`, v)}
+                            />
+                          )}
+                          {ref.email && ref.phone && ' | '}
+                          {ref.phone && (
+                            <EditableField
+                              tag="span"
+                              value={ref.phone}
+                              className="text-sm text-gray-500"
+                              onSave={(v) => onFieldSave(`references[${index}].phone`, v)}
+                            />
+                          )}
                         </p>
                       </div>
                     ))}

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { ChatMessage, ConversationState, ResumeData, QuestionCategory } from '@/types';
 import { questions, getSectionKeyForQuestion } from '@/lib/questions';
 import { formatFieldValue } from '@/lib/formatters';
+import { setNestedValue } from '@/lib/objectUtils';
 
 interface ConversationStore extends ConversationState {
   // Actions
@@ -55,52 +56,6 @@ const initialState: ConversationState = {
   helpMeWriteActive: false,
   helpMeWriteQuestionId: null,
   sectionConfirmed: {},
-};
-
-// Helper to set nested object value by path
-const setNestedValue = (obj: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> => {
-  const keys = path.split('.');
-  const result = { ...obj };
-  let current: Record<string, unknown> = result;
-
-  for (let i = 0; i < keys.length - 1; i++) {
-    const key = keys[i];
-    const match = key.match(/(\w+)\[(\d+)\]/);
-
-    if (match) {
-      const [, arrayName, indexStr] = match;
-      const index = parseInt(indexStr, 10);
-      if (!Array.isArray(current[arrayName])) {
-        current[arrayName] = [];
-      }
-      const arr = current[arrayName] as Record<string, unknown>[];
-      if (!arr[index]) {
-        arr[index] = {};
-      }
-      current = arr[index];
-    } else {
-      if (!current[key] || typeof current[key] !== 'object') {
-        current[key] = {};
-      }
-      current = current[key] as Record<string, unknown>;
-    }
-  }
-
-  const lastKey = keys[keys.length - 1];
-  const match = lastKey.match(/(\w+)\[(\d+)\]/);
-
-  if (match) {
-    const [, arrayName, indexStr] = match;
-    const index = parseInt(indexStr, 10);
-    if (!Array.isArray(current[arrayName])) {
-      current[arrayName] = [];
-    }
-    (current[arrayName] as unknown[])[index] = value;
-  } else {
-    current[lastKey] = value;
-  }
-
-  return result;
 };
 
 export const useConversationStore = create<ConversationStore>()(
